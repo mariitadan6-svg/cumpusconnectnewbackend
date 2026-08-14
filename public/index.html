@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="theme-color" content="#0a0e27" />
+<meta name="description" content="CampusConnect - Kenya's #1 platform for Dating, Friendship & Hookups. 18+" />
+<title>CampusConnect — Kenya's #1 Dating, Friendship & Hookup Platform</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<!-- ==================== FLASH LOAD SCREEN ==================== -->
+<div id="flashLoader" class="flash-loader">
+  <div class="flash-inner">
+    <div class="flash-logo">
+      <div class="heart-orbit">
+        <i class="fa-solid fa-heart"></i>
+        <i class="fa-solid fa-heart"></i>
+        <i class="fa-solid fa-heart"></i>
+      </div>
+      <h1 class="flash-title">Campus<span>Connect</span></h1>
+      <p class="flash-tagline">Where Kenya connects ❤️</p>
+    </div>
+    <div class="flash-bar"><div class="flash-bar-fill"></div></div>
+    <p class="flash-status" id="flashStatus">Igniting the vibe...</p>
+  </div>
+  <div class="floating-hearts">
+    <span>❤</span><span>💜</span><span>💖</span><span>💕</span><span>💗</span>
+    <span>❤</span><span>💜</span><span>💖</span><span>💕</span><span>💗</span>
+  </div>
+</div>
+
+<!-- ==================== LANDING SCREEN ==================== -->
+<section id="landing" class="screen landing-screen hidden">
+  <nav class="nav">
+    <div class="nav-logo"><i class="fa-solid fa-heart-pulse"></i> CampusConnect</div>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#how">How it works</a>
+      <a href="#safety">Safety</a>
+      <button class="btn btn-ghost" onclick="showLogin()">Login</button>
+      <button class="btn btn-primary" onclick="showRegister()">Join Free</button>
+    </div>
+    <button class="nav-toggle" onclick="document.querySelector('.nav-links').classList.toggle('open')"><i class="fa-solid fa-bars"></i></button>
+  </nav>
+
+  <div class="hero">
+    <div class="hero-blobs"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div></div>
+    <div class="hero-content">
+      <div class="badge-18"><i class="fa-solid fa-shield"></i> Strictly 18+ · Kenya-wide</div>
+      <h1 class="hero-title">
+        Find your <span class="gradient-text">Vibe</span>.<br />
+        Dating · Friendship · <span class="gradient-text-2">Hookups</span>
+      </h1>
+      <p class="hero-sub">
+        CampusConnect is Kenya's smartest way to meet someone real. Choose what you're looking for, filter by county & subcounty, and match with people who share your interests.
+      </p>
+      <div class="hero-cta">
+        <button class="btn btn-primary btn-big" onclick="showRegister()">
+          <i class="fa-solid fa-heart"></i> Get Started Free
+        </button>
+        <button class="btn btn-outline btn-big" onclick="showLogin()">
+          <i class="fa-solid fa-right-to-bracket"></i> I have an account
+        </button>
+      </div>
+      <div class="hero-stats">
+        <div><strong>47</strong><span>Counties</span></div>
+        <div><strong>290+</strong><span>Subcounties</span></div>
+        <div><strong>3</strong><span>Vibes</span></div>
+      </div>
+    </div>
+    <div class="hero-visual">
+      <div class="phone-card card-1">
+        <div class="pc-img" style="background:linear-gradient(135deg,#ff6b9d,#c44dff)"></div>
+        <div class="pc-info"><strong>Amina, 22</strong><small><i class="fa-solid fa-location-dot"></i> Nairobi · Dating</small></div>
+        <div class="pc-actions"><span class="pc-x"><i class="fa-solid fa-xmark"></i></span><span class="pc-heart"><i class="fa-solid fa-heart"></i></span></div>
+      </div>
+      <div class="phone-card card-2">
+        <div class="pc-img" style="background:linear-gradient(135deg,#4facfe,#00f2fe)"></div>
+        <div class="pc-info"><strong>Brian, 24</strong><small><i class="fa-solid fa-location-dot"></i> Mombasa · Friends</small></div>
+      </div>
+      <div class="phone-card card-3">
+        <div class="pc-img" style="background:linear-gradient(135deg,#fa709a,#fee140)"></div>
+        <div class="pc-info"><strong>Cynthia, 21</strong><small><i class="fa-solid fa-fire"></i> Kisumu · Hookup</small></div>
+      </div>
+    </div>
+  </div>
+
+  <section id="features" class="features">
+    <h2 class="section-title">Why <span class="gradient-text">CampusConnect?</span></h2>
+    <div class="feature-grid">
+      <div class="feature-card" data-anim="fade">
+        <div class="fc-icon" style="background:linear-gradient(135deg,#ff6b9d,#c44dff)"><i class="fa-solid fa-heart"></i></div>
+        <h3>3 Vibes, One App</h3>
+        <p>Set your goal to Dating, Friendship or Hookup — and filter matches the same way.</p>
+      </div>
+      <div class="feature-card" data-anim="fade">
+        <div class="fc-icon" style="background:linear-gradient(135deg,#4facfe,#00f2fe)"><i class="fa-solid fa-location-dot"></i></div>
+        <h3>All 47 Counties</h3>
+        <p>Every Kenyan county with full subcounty lists. Find people close to home.</p>
+      </div>
+      <div class="feature-card" data-anim="fade">
+        <div class="fc-icon" style="background:linear-gradient(135deg,#fa709a,#fee140)"><i class="fa-solid fa-brain"></i></div>
+        <h3>Smart Suggestions</h3>
+        <p>We rank matches by shared interests — so you meet people who actually get you.</p>
+      </div>
+      <div class="feature-card" data-anim="fade">
+        <div class="fc-icon" style="background:linear-gradient(135deg,#43e97b,#38f9d7)"><i class="fa-solid fa-shield-halved"></i></div>
+        <h3>Safety First</h3>
+        <p>18+ verified, secure passwords, and a friendly AI assistant to guide you.</p>
+      </div>
+      <div class="feature-card" data-anim="fade">
+        <div class="fc-icon" style="background:linear-gradient(135deg,#f093fb,#f5576c)"><i class="fa-solid fa-comments"></i></div>
+        <h3>Instant Chat</h3>
+        <p>Match and message in real time. Beautiful chat with emoji, and much more.</p>
+      </div>
+      <div class="feature-card" data-anim="fade">
+        <div class="fc-icon" style="background:linear-gradient(135deg,#30cfd0,#330867)"><i class="fa-solid fa-robot"></i></div>
+        <h3>AI Assistant Cupid</h3>
+        <p>Stuck? Ask Cupid anything — from safety tips to profile advice.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="how" class="how">
+    <h2 class="section-title">How it <span class="gradient-text-2">Works</span></h2>
+    <div class="steps">
+      <div class="step"><div class="step-n">1</div><h3>Confirm you're 18+</h3><p>Age verification and consent to our safety terms.</p></div>
+      <div class="step"><div class="step-n">2</div><h3>Create your profile</h3><p>Pick your vibe, county, subcounty & interests. Set your password.</p></div>
+      <div class="step"><div class="step-n">3</div><h3>Discover & Match</h3><p>Filter by vibe, browse suggestions & like people you fancy.</p></div>
+      <div class="step"><div class="step-n">4</div><h3>Chat & Meet</h3><p>Message your matches. Stay safe. Have fun.</p></div>
+    </div>
+  </section>
+
+  <section id="safety" class="safety">
+    <div class="safety-inner">
+      <h2 class="section-title">Your Safety, <span class="gradient-text">Our Priority</span></h2>
+      <ul>
+        <li><i class="fa-solid fa-check"></i> Strictly 18+ with mandatory age confirmation</li>
+        <li><i class="fa-solid fa-check"></i> Encrypted passwords (bcrypt)</li>
+        <li><i class="fa-solid fa-check"></i> Report & block any user, anytime</li>
+        <li><i class="fa-solid fa-check"></i> Never share financial info with matches</li>
+        <li><i class="fa-solid fa-check"></i> Meet in public and tell a friend where you're going</li>
+      </ul>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <p>© 2026 CampusConnect Kenya. Made with ❤️ for Kenya. All rights reserved.</p>
+    <p class="small">18+ only. By using this app you agree to our terms and community guidelines.</p>
+  </footer>
+</section>
+
+<!-- ==================== AGE GATE ==================== -->
+<div id="ageGate" class="modal hidden">
+  <div class="modal-card">
+    <div class="modal-icon-warn"><i class="fa-solid fa-triangle-exclamation"></i></div>
+    <h2>Age Confirmation Required</h2>
+    <p>CampusConnect is strictly for adults 18 years or older. You must confirm your age to continue.</p>
+    <label class="checkbox">
+      <input type="checkbox" id="ageCheckbox" />
+      <span></span>
+      I confirm that I am <strong>18 years or older</strong> and I agree to CampusConnect's Terms of Service and Community Guidelines.
+    </label>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeAgeGate()">Cancel</button>
+      <button class="btn btn-primary" id="ageContinue" disabled>Continue</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== LOGIN ==================== -->
+<div id="loginModal" class="modal hidden">
+  <div class="modal-card">
+    <button class="modal-close" onclick="closeModal('loginModal')"><i class="fa-solid fa-xmark"></i></button>
+    <div class="modal-logo"><i class="fa-solid fa-heart"></i> CampusConnect</div>
+    <h2>Welcome back</h2>
+    <p class="muted">Login to continue matching</p>
+    <form id="loginForm" onsubmit="handleLogin(event)">
+      <div class="field"><i class="fa-solid fa-envelope"></i><input type="email" id="loginEmail" required placeholder="Email address" /></div>
+      <div class="field"><i class="fa-solid fa-lock"></i><input type="password" id="loginPassword" required placeholder="Password" /><i class="fa-solid fa-eye toggle-eye" onclick="togglePass('loginPassword', this)"></i></div>
+      <div class="error-msg" id="loginError"></div>
+      <button type="submit" class="btn btn-primary btn-full"><i class="fa-solid fa-right-to-bracket"></i> Login</button>
+    </form>
+    <p class="muted center">Don't have an account? <a href="#" onclick="closeModal('loginModal');showRegister();return false;">Create one</a></p>
+  </div>
+</div>
+
+<!-- ==================== REGISTER (multi-step) ==================== -->
+<div id="registerModal" class="modal hidden">
+  <div class="modal-card wide">
+    <button class="modal-close" onclick="closeModal('registerModal')"><i class="fa-solid fa-xmark"></i></button>
+    <div class="modal-logo"><i class="fa-solid fa-heart"></i> CampusConnect</div>
+    <div class="step-bar">
+      <div class="sb sb1 active">1</div><div class="sb-line"></div>
+      <div class="sb sb2">2</div><div class="sb-line"></div>
+      <div class="sb sb3">3</div><div class="sb-line"></div>
+      <div class="sb sb4">4</div>
+    </div>
+
+    <form id="registerForm" onsubmit="handleRegister(event)">
+      <!-- STEP 1: basic -->
+      <div class="reg-step active" data-step="1">
+        <h2>Tell us about you</h2>
+        <div class="field"><i class="fa-solid fa-user"></i><input type="text" id="regName" required placeholder="Your full name" /></div>
+        <div class="row">
+          <div class="field"><i class="fa-solid fa-cake-candles"></i><input type="number" id="regAge" min="18" max="99" required placeholder="Age (18+)" /></div>
+          <div class="field select">
+            <i class="fa-solid fa-venus-mars"></i>
+            <select id="regGender" required>
+              <option value="">Gender</option>
+              <option value="female">Female</option>
+              <option value="male">Male</option>
+              <option value="nonbinary">Non-binary</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+        </div>
+        <div class="field select"><i class="fa-solid fa-heart"></i>
+          <select id="regInterestedIn" required>
+            <option value="">Interested in</option>
+            <option value="men">Men</option>
+            <option value="women">Women</option>
+            <option value="everyone">Everyone</option>
+          </select>
+        </div>
+        <div class="reg-actions"><button type="button" class="btn btn-primary btn-full" onclick="regNext(1)">Next <i class="fa-solid fa-arrow-right"></i></button></div>
+      </div>
+
+      <!-- STEP 2: vibe + location -->
+      <div class="reg-step" data-step="2">
+        <h2>What's your vibe?</h2>
+        <div class="vibe-grid">
+          <label class="vibe-card">
+            <input type="radio" name="lookingFor" value="dating" required />
+            <div class="vibe-inner">
+              <div class="vibe-icon" style="background:linear-gradient(135deg,#ff6b9d,#c44dff)"><i class="fa-solid fa-heart"></i></div>
+              <h3>Dating</h3><p>Meaningful connections & relationships</p>
+            </div>
+          </label>
+          <label class="vibe-card">
+            <input type="radio" name="lookingFor" value="friendship" />
+            <div class="vibe-inner">
+              <div class="vibe-icon" style="background:linear-gradient(135deg,#4facfe,#00f2fe)"><i class="fa-solid fa-people-group"></i></div>
+              <h3>Friendship</h3><p>New friends, hangouts, study buddies</p>
+            </div>
+          </label>
+          <label class="vibe-card">
+            <input type="radio" name="lookingFor" value="hookup" />
+            <div class="vibe-inner">
+              <div class="vibe-icon" style="background:linear-gradient(135deg,#fa709a,#fee140)"><i class="fa-solid fa-fire"></i></div>
+              <h3>Hookup</h3><p>No strings. Adults, consenting, 18+</p>
+            </div>
+          </label>
+        </div>
+        <div class="row">
+          <div class="field select"><i class="fa-solid fa-map-location-dot"></i>
+            <select id="regCounty" required onchange="loadSubcounties()">
+              <option value="">Select County</option>
+            </select>
+          </div>
+          <div class="field select"><i class="fa-solid fa-location-dot"></i>
+            <select id="regSubcounty" required>
+              <option value="">Subcounty</option>
+            </select>
+          </div>
+        </div>
+        <div class="reg-actions">
+          <button type="button" class="btn btn-ghost" onclick="regBack(2)"><i class="fa-solid fa-arrow-left"></i> Back</button>
+          <button type="button" class="btn btn-primary" onclick="regNext(2)">Next <i class="fa-solid fa-arrow-right"></i></button>
+        </div>
+      </div>
+
+      <!-- STEP 3: interests + bio -->
+      <div class="reg-step" data-step="3">
+        <h2>Show your personality</h2>
+        <label class="lbl">Bio (2-3 sentences)</label>
+        <textarea id="regBio" rows="3" placeholder="Tell people what makes you, you..."></textarea>
+        <label class="lbl">Pick your interests <small>(tap to select)</small></label>
+        <div class="interest-tags" id="interestTags"></div>
+        <div class="reg-actions">
+          <button type="button" class="btn btn-ghost" onclick="regBack(3)"><i class="fa-solid fa-arrow-left"></i> Back</button>
+          <button type="button" class="btn btn-primary" onclick="regNext(3)">Next <i class="fa-solid fa-arrow-right"></i></button>
+        </div>
+      </div>
+
+      <!-- STEP 4: account creds -->
+      <div class="reg-step" data-step="4">
+        <h2>Create your login</h2>
+        <p class="muted">You'll use this email and password to sign in.</p>
+        <div class="field"><i class="fa-solid fa-envelope"></i><input type="email" id="regEmail" required placeholder="Email address" /></div>
+        <div class="field"><i class="fa-solid fa-lock"></i><input type="password" id="regPassword" required minlength="6" placeholder="Password (min 6 chars)" /><i class="fa-solid fa-eye toggle-eye" onclick="togglePass('regPassword', this)"></i></div>
+        <div class="field"><i class="fa-solid fa-lock"></i><input type="password" id="regPassword2" required minlength="6" placeholder="Confirm password" /></div>
+        <label class="checkbox">
+          <input type="checkbox" id="regAge18" required />
+          <span></span>
+          I confirm I am <strong>18 years or older</strong> and I accept the Terms & Community Guidelines.
+        </label>
+        <div class="error-msg" id="registerError"></div>
+        <div class="reg-actions">
+          <button type="button" class="btn btn-ghost" onclick="regBack(4)"><i class="fa-solid fa-arrow-left"></i> Back</button>
+          <button type="submit" class="btn btn-primary"><i class="fa-solid fa-check"></i> Create Account</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ==================== APP ==================== -->
+<section id="app" class="screen app-screen hidden">
+  <header class="app-header">
+    <div class="app-logo"><i class="fa-solid fa-heart-pulse"></i> CampusConnect</div>
+    <nav class="app-nav">
+      <button class="app-nav-btn active" data-tab="discover"><i class="fa-solid fa-compass"></i><span>Discover</span></button>
+      <button class="app-nav-btn" data-tab="matches"><i class="fa-solid fa-heart"></i><span>Matches</span></button>
+      <button class="app-nav-btn" data-tab="chat"><i class="fa-solid fa-comments"></i><span>Chat</span></button>
+      <button class="app-nav-btn" data-tab="profile"><i class="fa-solid fa-user"></i><span>Profile</span></button>
+    </nav>
+    <button class="btn-icon" onclick="logout()" title="Logout"><i class="fa-solid fa-right-from-bracket"></i></button>
+  </header>
+
+  <!-- DISCOVER -->
+  <div class="tab active" id="tab-discover">
+    <div class="filter-bar">
+      <h3><i class="fa-solid fa-sliders"></i> Filters</h3>
+      <div class="filter-chips">
+        <button class="chip active" data-filter="all"><i class="fa-solid fa-globe"></i> All Vibes</button>
+        <button class="chip" data-filter="dating"><i class="fa-solid fa-heart"></i> Dating</button>
+        <button class="chip" data-filter="friendship"><i class="fa-solid fa-people-group"></i> Friendship</button>
+        <button class="chip" data-filter="hookup"><i class="fa-solid fa-fire"></i> Hookup</button>
+      </div>
+      <div class="filter-row">
+        <select id="filterCounty" onchange="applyFilters()"><option value="">Any County</option></select>
+        <select id="filterSubcounty" onchange="applyFilters()"><option value="">Any Subcounty</option></select>
+      </div>
+    </div>
+    <div class="cards-grid" id="discoverGrid"></div>
+    <div class="empty" id="discoverEmpty" style="display:none">
+      <i class="fa-solid fa-magnifying-glass"></i>
+      <h3>No matches found</h3>
+      <p>Try changing your filters</p>
+    </div>
+  </div>
+
+  <!-- MATCHES -->
+  <div class="tab" id="tab-matches">
+    <h2 class="tab-title"><i class="fa-solid fa-heart"></i> Your Matches</h2>
+    <div class="matches-grid" id="matchesGrid"></div>
+    <div class="empty" id="matchesEmpty" style="display:none">
+      <i class="fa-solid fa-heart-crack"></i>
+      <h3>No matches yet</h3>
+      <p>Keep swiping!</p>
+    </div>
+  </div>
+
+  <!-- CHAT -->
+  <div class="tab" id="tab-chat">
+    <div class="chat-wrap">
+      <aside class="chat-list" id="chatList">
+        <h3><i class="fa-solid fa-comments"></i> Conversations</h3>
+        <div id="chatListItems"></div>
+      </aside>
+      <main class="chat-main" id="chatMain">
+        <div class="chat-empty" id="chatEmpty">
+          <i class="fa-solid fa-comments"></i>
+          <p>Select a match to start chatting</p>
+        </div>
+        <div class="chat-active" id="chatActive" style="display:none">
+          <header id="chatHeader"></header>
+          <div class="chat-messages" id="chatMessages"></div>
+          <form class="chat-input" onsubmit="sendMessage(event)">
+            <input type="text" id="chatText" placeholder="Type a message..." required />
+            <button class="btn btn-primary btn-round"><i class="fa-solid fa-paper-plane"></i></button>
+          </form>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- PROFILE -->
+  <div class="tab" id="tab-profile">
+    <div class="profile-card">
+      <div class="profile-cover"></div>
+      <div class="profile-avatar" id="profileAvatar">?</div>
+      <h2 id="profileName"></h2>
+      <p class="muted" id="profileEmail"></p>
+      <div class="profile-info">
+        <div><i class="fa-solid fa-cake-candles"></i> <span id="profileAge"></span></div>
+        <div><i class="fa-solid fa-location-dot"></i> <span id="profileLocation"></span></div>
+        <div><i class="fa-solid fa-heart"></i> <span id="profileVibe"></span></div>
+      </div>
+      <p class="bio" id="profileBio"></p>
+      <div class="tags" id="profileInterests"></div>
+      <button class="btn btn-outline" onclick="alert('Edit profile coming soon!')"><i class="fa-solid fa-pen"></i> Edit Profile</button>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== CHATBOT (Cupid) ==================== -->
+<button id="botToggle" class="bot-toggle hidden" onclick="toggleBot()">
+  <i class="fa-solid fa-robot"></i>
+  <span class="bot-pulse"></span>
+</button>
+<div id="botWindow" class="bot-window hidden">
+  <header class="bot-header">
+    <div>
+      <div class="bot-avatar"><i class="fa-solid fa-robot"></i></div>
+      <div><strong>Cupid</strong><small>AI Assistant · Online</small></div>
+    </div>
+    <button onclick="toggleBot()"><i class="fa-solid fa-xmark"></i></button>
+  </header>
+  <div class="bot-messages" id="botMessages">
+    <div class="bot-msg bot"><span>👋 Hi! I'm Cupid, your CampusConnect AI assistant. Ask me anything about matching, safety, or how the app works!</span></div>
+  </div>
+  <form class="bot-input" onsubmit="sendBotMsg(event)">
+    <input type="text" id="botInput" placeholder="Ask me anything..." autocomplete="off" required />
+    <button class="btn btn-primary btn-round"><i class="fa-solid fa-paper-plane"></i></button>
+  </form>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="toast hidden"></div>
+
+<script src="js/config.js"></script>
+<script src="js/counties-data.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
