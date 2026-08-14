@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex, nofollow" />
+<title>CampusConnect · Admin Panel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- ============ LOGIN SCREEN ============ -->
+<div id="loginScreen" class="login-screen">
+  <div class="login-bg">
+    <div class="orb orb1"></div>
+    <div class="orb orb2"></div>
+    <div class="orb orb3"></div>
+    <div class="grid-lines"></div>
+  </div>
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="logo-icon"><i class="fa-solid fa-shield-halved"></i></div>
+      <h1>Campus<span>Connect</span></h1>
+      <p>Admin Control Center</p>
+    </div>
+    <form id="loginForm" onsubmit="doLogin(event)">
+      <label class="input-wrap">
+        <i class="fa-solid fa-key"></i>
+        <input type="password" id="pwd" required placeholder="Enter admin password" autocomplete="current-password" />
+        <span class="input-line"></span>
+      </label>
+      <div class="err" id="loginErr"></div>
+      <button type="submit" class="btn-primary" id="loginBtn">
+        <span class="btn-text">Access Dashboard</span>
+        <i class="fa-solid fa-arrow-right"></i>
+      </button>
+    </form>
+    <div class="login-foot">
+      <i class="fa-solid fa-lock"></i> Secure encrypted session · 12h expiry
+    </div>
+  </div>
+</div>
+
+<!-- ============ DASHBOARD ============ -->
+<div id="dashboard" class="dashboard hidden">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sb-logo">
+      <div class="logo-icon sm"><i class="fa-solid fa-shield-halved"></i></div>
+      <div><strong>CampusConnect</strong><small>Admin v1.0</small></div>
+    </div>
+    <nav class="sb-nav">
+      <button class="sb-item active" data-view="overview"><i class="fa-solid fa-gauge-high"></i><span>Overview</span></button>
+      <button class="sb-item" data-view="users"><i class="fa-solid fa-users"></i><span>Users</span></button>
+      <button class="sb-item" data-view="matches"><i class="fa-solid fa-heart"></i><span>Matches</span></button>
+      <button class="sb-item" data-view="messages"><i class="fa-solid fa-comments"></i><span>Messages</span></button>
+      <button class="sb-item" data-view="analytics"><i class="fa-solid fa-chart-line"></i><span>Analytics</span></button>
+      <button class="sb-item" data-view="settings"><i class="fa-solid fa-sliders"></i><span>Settings</span></button>
+    </nav>
+    <div class="sb-bottom">
+      <button class="sb-item danger" onclick="doLogout()"><i class="fa-solid fa-right-from-bracket"></i><span>Sign Out</span></button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    <header class="topbar">
+      <div>
+        <h2 id="viewTitle">Overview</h2>
+        <p class="muted" id="viewSub">Real-time platform metrics</p>
+      </div>
+      <div class="topbar-right">
+        <button class="icon-btn" onclick="refreshAll()" title="Refresh"><i class="fa-solid fa-rotate"></i></button>
+        <div class="admin-chip"><i class="fa-solid fa-user-shield"></i> Administrator</div>
+      </div>
+    </header>
+
+    <!-- OVERVIEW VIEW -->
+    <section class="view active" data-view="overview">
+      <div class="stats-grid">
+        <div class="stat-card grad-1">
+          <div class="sc-icon"><i class="fa-solid fa-users"></i></div>
+          <div class="sc-body"><small>Total Users</small><h3 id="stat-users">0</h3></div>
+          <div class="sc-spark"></div>
+        </div>
+        <div class="stat-card grad-2">
+          <div class="sc-icon"><i class="fa-solid fa-heart"></i></div>
+          <div class="sc-body"><small>Matches</small><h3 id="stat-matches">0</h3></div>
+          <div class="sc-spark"></div>
+        </div>
+        <div class="stat-card grad-3">
+          <div class="sc-icon"><i class="fa-solid fa-comments"></i></div>
+          <div class="sc-body"><small>Messages</small><h3 id="stat-messages">0</h3></div>
+          <div class="sc-spark"></div>
+        </div>
+        <div class="stat-card grad-4">
+          <div class="sc-icon"><i class="fa-solid fa-thumbs-up"></i></div>
+          <div class="sc-body"><small>Total Likes</small><h3 id="stat-likes">0</h3></div>
+          <div class="sc-spark"></div>
+        </div>
+      </div>
+
+      <div class="row-2">
+        <div class="panel">
+          <div class="panel-h"><h3><i class="fa-solid fa-fire"></i> Vibe Distribution</h3></div>
+          <div class="vibes" id="vibes"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-h"><h3><i class="fa-solid fa-location-dot"></i> Top Counties</h3></div>
+          <div class="counties-bars" id="countyBars"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-h">
+          <h3><i class="fa-solid fa-user-plus"></i> Recent Signups</h3>
+          <button class="link-btn" onclick="switchView('users')">View all →</button>
+        </div>
+        <div class="recent-list" id="recentUsers"></div>
+      </div>
+    </section>
+
+    <!-- USERS VIEW -->
+    <section class="view" data-view="users">
+      <div class="panel">
+        <div class="panel-h">
+          <h3><i class="fa-solid fa-users"></i> All Users <span class="pill" id="usersCount">0</span></h3>
+          <input type="text" id="userSearch" placeholder="Search by name, email, county..." class="search-input" oninput="renderUsers()" />
+        </div>
+        <div class="table-wrap">
+          <table class="tbl">
+            <thead>
+              <tr>
+                <th>User</th><th>Email</th><th>Age</th><th>Gender</th><th>Vibe</th><th>Location</th><th>Joined</th><th></th>
+              </tr>
+            </thead>
+            <tbody id="usersTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- MATCHES VIEW -->
+    <section class="view" data-view="matches">
+      <div class="panel">
+        <div class="panel-h">
+          <h3><i class="fa-solid fa-heart"></i> All Matches <span class="pill" id="matchesCount">0</span></h3>
+        </div>
+        <div class="table-wrap">
+          <table class="tbl">
+            <thead>
+              <tr><th>User A</th><th>User B</th><th>Matched</th></tr>
+            </thead>
+            <tbody id="matchesTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- MESSAGES VIEW -->
+    <section class="view" data-view="messages">
+      <div class="panel">
+        <div class="panel-h">
+          <h3><i class="fa-solid fa-comments"></i> Recent Messages <span class="pill" id="msgsCount">0</span></h3>
+        </div>
+        <div class="msg-feed" id="msgsFeed"></div>
+      </div>
+    </section>
+
+    <!-- ANALYTICS VIEW -->
+    <section class="view" data-view="analytics">
+      <div class="row-2">
+        <div class="panel">
+          <div class="panel-h"><h3><i class="fa-solid fa-venus-mars"></i> Gender Split</h3></div>
+          <div class="gender-donut" id="genderDonut"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-h"><h3><i class="fa-solid fa-chart-column"></i> Vibe Chart</h3></div>
+          <div class="vibe-chart" id="vibeChart"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-h"><h3><i class="fa-solid fa-earth-africa"></i> Full County Breakdown</h3></div>
+        <div class="counties-bars big" id="countyBarsFull"></div>
+      </div>
+    </section>
+
+    <!-- SETTINGS VIEW -->
+    <section class="view" data-view="settings">
+      <div class="panel">
+        <div class="panel-h"><h3><i class="fa-solid fa-sliders"></i> System Settings</h3></div>
+        <div class="settings-grid">
+          <div class="set-item">
+            <div><strong>API Status</strong><small>Backend health check</small></div>
+            <div id="apiStatus" class="status-dot"><span></span> Checking...</div>
+          </div>
+          <div class="set-item">
+            <div><strong>Admin Password</strong><small>Change via environment variable ADMIN_PASSWORD on Render</small></div>
+            <code>••••••••••</code>
+          </div>
+          <div class="set-item">
+            <div><strong>JWT Session</strong><small>Auto-expires after 12h. Sign in again to renew.</small></div>
+            <span class="pill green">Active</span>
+          </div>
+          <div class="set-item">
+            <div><strong>Data Storage</strong><small>In-memory (resets on server restart)</small></div>
+            <span class="pill orange">Ephemeral</span>
+          </div>
+          <div class="set-item">
+            <div><strong>Frontend URL</strong><small>Integrated with backend at same origin</small></div>
+            <a href="/" target="_blank" class="link-btn">Open App →</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="toast"></div>
+
+<script src="script.js"></script>
+</body>
+</html>

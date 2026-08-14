@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+const path = require('path');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
@@ -9,33 +10,49 @@ const userRoutes = require('./routes/users');
 const messageRoutes = require('./routes/messages');
 const metaRoutes = require('./routes/meta');
 const chatbotRoutes = require('./routes/chatbot');
+const adminRoutes = require('./routes/admin');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-app.use(helmet());
+// Helmet with relaxed CSP so inline scripts (admin panel, frontend) work
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' }
+}));
 app.use(cors({ origin: '*', credentials: true }));
 app.use(express.json({ limit: '5mb' }));
 
 const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 500 });
-app.use(limiter);
+app.use('/api/', limiter);
 
-app.get('/', (req, res) => {
+app.get('/health', (req, res) => res.json({ ok: true, ts: Date.now() }));
+
+app.get('/api', (req, res) => {
   res.json({
     name: 'CampusConnect API',
     version: '1.0.0',
     status: 'running',
-    endpoints: ['/api/auth', '/api/users', '/api/messages', '/api/meta', '/api/chatbot']
+    endpoints: ['/api/auth', '/api/users', '/api/messages', '/api/meta', '/api/chatbot', '/api/admin']
   });
 });
-
-app.get('/health', (req, res) => res.json({ ok: true, ts: Date.now() }));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/meta', metaRoutes);
 app.use('/api/chatbot', chatbotRoutes);
+app.use('/api/admin', adminRoutes);
+
+// Serve admin panel at /admin
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'admin', 'index.html'));
+});
+app.use('/admin', express.static(path.join(__dirname, 'public', 'admin')));
+
+// Serve frontend static files from public/ (frontend integrated into backend)
+app.use(express.static(path.join(__dirname, 'public'), { index: 'index.html' }));
 
 // Seed a few demo users so discovery isn't empty on first deploy
 (async () => {
@@ -49,7 +66,7 @@ app.use('/api/chatbot', chatbotRoutes);
     { name: 'Dennis O.', age: 26, gender: 'male', lookingFor: 'dating', county: 'Nakuru', subcounty: 'Naivasha', bio: 'Photographer, foodie, dog dad.', interests: ['photography', 'food', 'dogs'] },
     { name: 'Esther M.', age: 23, gender: 'female', lookingFor: 'friendship', county: 'Kiambu', subcounty: 'Ruiru', bio: 'Book worm & tea addict.', interests: ['books', 'tea', 'movies'] },
     { name: 'Felix R.', age: 25, gender: 'male', lookingFor: 'hookup', county: 'Nairobi', subcounty: 'Kilimani', bio: 'Gym rat, no strings.', interests: ['gym', 'nightlife', 'cars'] },
-    { name: 'Grace A.', age: 20, gender: 'female', lookingFor: 'dating', county: 'Uasin Gishu', subcounty: 'Eldoret East', bio: 'Med student. Faith, family, fun.', interests: ['medicine', 'faith', 'music'] },
+    { name: 'Grace A.', age: 20, gender: 'female', lookingFor: 'dating', county: 'Uasin Gishu', subcounty: 'Ainabkoi', bio: 'Med student. Faith, family, fun.', interests: ['medicine', 'faith', 'music'] },
     { name: 'Hussein A.', age: 27, gender: 'male', lookingFor: 'friendship', county: 'Mombasa', subcounty: 'Mvita', bio: 'Sailor, foodie, storyteller.', interests: ['sailing', 'food', 'travel'] }
   ];
   for (const d of demo) {
@@ -71,4 +88,6 @@ app.use((err, req, res, next) => {
 
 app.listen(PORT, () => {
   console.log(`🚀 CampusConnect API listening on port ${PORT}`);
+  console.log(`📱 Frontend: http://localhost:${PORT}/`);
+  console.log(`🔐 Admin: http://localhost:${PORT}/admin`);
 });
