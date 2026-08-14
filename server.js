@@ -49,10 +49,19 @@ app.use('/api/admin', adminRoutes);
 app.get('/admin', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin', 'index.html'));
 });
-app.use('/admin', express.static(path.join(__dirname, 'public', 'admin')));
-
-// Serve frontend static files from public/ (frontend integrated into backend)
-app.use(express.static(path.join(__dirname, 'public'), { index: 'index.html' }));
+// API-only root response (frontend lives on Netlify) — must come BEFORE the
+// admin static mount so express.static's index.html doesn't capture it.
+app.get('/', (req, res) => {
+  res.json({
+    name: 'CampusConnect API',
+    version: '1.0.0',
+    status: 'running',
+    admin: '/admin',
+    endpoints: ['/api/auth', '/api/users', '/api/messages', '/api/meta', '/api/chatbot', '/api/admin']
+  });
+});
+// Serve ONLY the admin panel static files (frontend is hosted on Netlify)
+app.use(express.static(path.join(__dirname, 'public', 'admin')));
 
 // Seed a few demo users so discovery isn't empty on first deploy
 (async () => {
@@ -88,6 +97,5 @@ app.use((err, req, res, next) => {
 
 app.listen(PORT, () => {
   console.log(`🚀 CampusConnect API listening on port ${PORT}`);
-  console.log(`📱 Frontend: http://localhost:${PORT}/`);
   console.log(`🔐 Admin: http://localhost:${PORT}/admin`);
 });
