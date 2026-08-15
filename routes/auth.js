@@ -54,6 +54,15 @@ router.post('/register', async (req, res) => {
       interests: Array.isArray(interests) ? interests : [],
       photo: '',
       photos: [],
+      settings: {
+        notifyMatches: true,
+        notifyMessages: true,
+        notifyLikes: true,
+        notifyComments: true,
+        notifyProfileViews: true,
+        showOnlineStatus: true,
+        sounds: true
+      },
       lastSeen: Date.now(),
       createdAt: Date.now()
     };

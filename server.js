@@ -73,14 +73,14 @@ app.use(express.static(path.join(__dirname, 'public', 'admin')));
   const { v4: uuidv4 } = require('uuid');
   const { users, emails } = require('./data/store');
   const demo = [
-    { name: 'Amina W.', age: 22, gender: 'female', lookingFor: 'dating', county: 'Nairobi', subcounty: 'Westlands', bio: 'Coffee lover, dreamer, hiking on weekends.', interests: ['coffee', 'hiking', 'music'] },
-    { name: 'Brian K.', age: 24, gender: 'male', lookingFor: 'friendship', county: 'Mombasa', subcounty: 'Nyali', bio: 'Software dev. Looking for study buddies.', interests: ['tech', 'coding', 'football'] },
-    { name: 'Cynthia N.', age: 21, gender: 'female', lookingFor: 'hookup', county: 'Kisumu', subcounty: 'Kisumu Central', bio: 'Confident and adventurous.', interests: ['dance', 'nightlife', 'travel'] },
-    { name: 'Dennis O.', age: 26, gender: 'male', lookingFor: 'dating', county: 'Nakuru', subcounty: 'Naivasha', bio: 'Photographer, foodie, dog dad.', interests: ['photography', 'food', 'dogs'] },
-    { name: 'Esther M.', age: 23, gender: 'female', lookingFor: 'friendship', county: 'Kiambu', subcounty: 'Ruiru', bio: 'Book worm & tea addict.', interests: ['books', 'tea', 'movies'] },
-    { name: 'Felix R.', age: 25, gender: 'male', lookingFor: 'hookup', county: 'Nairobi', subcounty: 'Kilimani', bio: 'Gym rat, no strings.', interests: ['gym', 'nightlife', 'cars'] },
-    { name: 'Grace A.', age: 20, gender: 'female', lookingFor: 'dating', county: 'Uasin Gishu', subcounty: 'Ainabkoi', bio: 'Med student. Faith, family, fun.', interests: ['medicine', 'faith', 'music'] },
-    { name: 'Hussein A.', age: 27, gender: 'male', lookingFor: 'friendship', county: 'Mombasa', subcounty: 'Mvita', bio: 'Sailor, foodie, storyteller.', interests: ['sailing', 'food', 'travel'] }
+    { name: 'Amina W.', age: 22, gender: 'female', lookingFor: 'dating', county: 'University of Nairobi', subcounty: 'Nairobi', bio: 'Coffee lover, dreamer, hiking on weekends.', interests: ['coffee', 'hiking', 'music'] },
+    { name: 'Brian K.', age: 24, gender: 'male', lookingFor: 'friendship', county: 'Jomo Kenyatta University of Agriculture and Technology (JKUAT)', subcounty: 'Juja', bio: 'Software dev. Looking for study buddies.', interests: ['tech', 'coding', 'football'] },
+    { name: 'Cynthia N.', age: 21, gender: 'female', lookingFor: 'hookup', county: 'Maseno University', subcounty: 'Maseno', bio: 'Confident and adventurous.', interests: ['dance', 'nightlife', 'travel'] },
+    { name: 'Dennis O.', age: 26, gender: 'male', lookingFor: 'dating', county: 'Egerton University', subcounty: 'Njoro', bio: 'Photographer, foodie, dog dad.', interests: ['photography', 'food', 'dogs'] },
+    { name: 'Esther M.', age: 23, gender: 'female', lookingFor: 'friendship', county: 'Kenyatta University', subcounty: 'Nairobi', bio: 'Book worm & tea addict.', interests: ['books', 'tea', 'movies'] },
+    { name: 'Felix R.', age: 25, gender: 'male', lookingFor: 'hookup', county: 'Strathmore University', subcounty: 'Nairobi', bio: 'Gym rat, no strings.', interests: ['gym', 'nightlife', 'cars'] },
+    { name: 'Grace A.', age: 20, gender: 'female', lookingFor: 'dating', county: 'Moi University', subcounty: 'Eldoret', bio: 'Med student. Faith, family, fun.', interests: ['medicine', 'faith', 'music'] },
+    { name: 'Hussein A.', age: 27, gender: 'male', lookingFor: 'friendship', county: 'Technical University of Mombasa', subcounty: 'Mombasa', bio: 'Sailor, foodie, storyteller.', interests: ['sailing', 'food', 'travel'] }
   ];
   const seededIds = [];
   for (const d of demo) {
@@ -105,7 +105,7 @@ app.use(express.static(path.join(__dirname, 'public', 'admin')));
     'You can now post photos & videos on the feed! 📸🎬'
   ];
   seedPosts.forEach((text, i) => {
-    posts.push({ id: uuidv4(), userId: seededIds[i % seededIds.length], text, mediaType: null, mediaData: '', ts: Date.now() - (i + 1) * 3600000, likes: new Set(), comments: [] });
+    posts.push({ id: uuidv4(), userId: seededIds[i % seededIds.length], text, mediaType: null, mediaData: '', ts: Date.now() - (i + 1) * 3600000, likes: new Set(), dislikes: new Set(), comments: [] });
   });
   console.log(`Seeded ${seedPosts.length} demo posts`);
 })();

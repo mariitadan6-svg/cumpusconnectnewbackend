@@ -18,7 +18,9 @@ function serialize(p, meId) {
       ? { id: a.id, name: a.name, photo: a.photo || '', county: a.county }
       : { id: '', name: 'Unknown', photo: '', county: '' },
     likeCount: p.likes ? p.likes.size : 0,
+    dislikeCount: p.dislikes ? p.dislikes.size : 0,
     likedByMe: meId && p.likes ? p.likes.has(meId) : false,
+    dislikedByMe: meId && p.dislikes ? p.dislikes.has(meId) : false,
     comments: (p.comments || []).map(c => {
       const cu = users.get(c.userId);
       return {
@@ -39,8 +41,8 @@ router.post('/', auth, (req, res) => {
   if (mediaData && !['image', 'video'].includes(mediaType)) {
     return res.status(400).json({ error: 'Invalid media type' });
   }
-  if (mediaData && typeof mediaData === 'string' && mediaData.length > 18 * 1024 * 1024) {
-    return res.status(400).json({ error: 'Media too large (max ~12MB)' });
+  if (mediaData && typeof mediaData === 'string' && mediaData.length > 24 * 1024 * 1024) {
+    return res.status(400).json({ error: 'Media too large (max ~18MB)' });
   }
   const post = {
     id: uuidv4(),
@@ -50,6 +52,7 @@ router.post('/', auth, (req, res) => {
     mediaData: mediaData || '',
     ts: Date.now(),
     likes: new Set(),
+    dislikes: new Set(),
     comments: []
   };
   posts.push(post);
@@ -66,6 +69,17 @@ router.get('/mine', auth, (req, res) => {
   res.json(posts.filter(p => p.userId === req.userId).sort((a, b) => b.ts - a.ts).map(p => serialize(p, req.userId)));
 });
 
+// Edit my own post (text update; keeps media & engagement)
+router.put('/:id', auth, (req, res) => {
+  const p = posts.find(x => x.id === req.params.id);
+  if (!p) return res.status(404).json({ error: 'Post not found' });
+  if (p.userId !== req.userId) return res.status(403).json({ error: 'Not your post' });
+  const { text } = req.body;
+  if (text === undefined || !text.trim()) return res.status(400).json({ error: 'Text required' });
+  p.text = text.trim();
+  res.json(serialize(p, req.userId));
+});
+
 // Like / unlike a post
 router.post('/:id/like', auth, (req, res) => {
   const p = posts.find(x => x.id === req.params.id);
@@ -74,12 +88,28 @@ router.post('/:id/like', auth, (req, res) => {
   if (p.likes.has(req.userId)) { p.likes.delete(req.userId); liked = false; }
   else {
     p.likes.add(req.userId); liked = true;
+    // liking removes a dislike if present
+    if (p.dislikes) p.dislikes.delete(req.userId);
     if (p.userId !== req.userId) {
       const me = users.get(req.userId);
       notify(p.userId, 'post_like', `❤️ ${me ? me.name : 'Someone'} liked your post`, req.userId);
     }
   }
-  res.json({ liked, likeCount: p.likes.size });
+  res.json({ liked, likeCount: p.likes.size, dislikeCount: p.dislikes ? p.dislikes.size : 0 });
+});
+
+// Dislike / undo-dislike a post (thumbs-down, independent counter)
+router.post('/:id/dislike', auth, (req, res) => {
+  const p = posts.find(x => x.id === req.params.id);
+  if (!p) return res.status(404).json({ error: 'Post not found' });
+  let disliked;
+  if (p.dislikes.has(req.userId)) { p.dislikes.delete(req.userId); disliked = false; }
+  else {
+    p.dislikes.add(req.userId); disliked = true;
+    // disliking removes a like if present
+    if (p.likes) p.likes.delete(req.userId);
+  }
+  res.json({ disliked, likeCount: p.likes.size, dislikeCount: p.dislikes.size });
 });
 
 // Comment on a post
@@ -93,6 +123,19 @@ router.post('/:id/comment', auth, (req, res) => {
     const me = users.get(req.userId);
     notify(p.userId, 'post_comment', `💬 ${me ? me.name : 'Someone'} commented on your post`, req.userId);
   }
+  res.json(serialize(p, req.userId));
+});
+
+// Delete a comment (author of comment OR post owner may delete)
+router.delete('/:id/comment/:commentId', auth, (req, res) => {
+  const p = posts.find(x => x.id === req.params.id);
+  if (!p) return res.status(404).json({ error: 'Post not found' });
+  const c = (p.comments || []).find(c => c.id === req.params.commentId);
+  if (!c) return res.status(404).json({ error: 'Comment not found' });
+  if (c.userId !== req.userId && p.userId !== req.userId) {
+    return res.status(403).json({ error: 'Not allowed to delete this comment' });
+  }
+  p.comments = p.comments.filter(x => x.id !== req.params.commentId);
   res.json(serialize(p, req.userId));
 });
 

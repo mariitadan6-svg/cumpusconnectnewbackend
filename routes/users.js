@@ -1,9 +1,13 @@
 const express = require('express');
-const { users, likes, matches, messages, posts } = require('../data/store');
+const bcrypt = require('bcryptjs');
+const { users, likes, matches, messages, posts, profileViews, emails, notifications } = require('../data/store');
 const { auth } = require('../middleware/auth');
 const { notify } = require('../utils/notify');
 
 const router = express.Router();
+
+// Online = lastSeen within the last 2 minutes
+const ONLINE_MS = 120000;
 
 function stripUser(u) {
   if (!u) return null;
@@ -18,7 +22,9 @@ function serializePost(p, meId) {
       ? { id: a.id, name: a.name, photo: a.photo || '', county: a.county }
       : { id: '', name: 'Unknown', photo: '', county: '' },
     likeCount: p.likes ? p.likes.size : 0,
+    dislikeCount: p.dislikes ? p.dislikes.size : 0,
     likedByMe: meId && p.likes ? p.likes.has(meId) : false,
+    dislikedByMe: meId && p.dislikes ? p.dislikes.has(meId) : false,
     comments: (p.comments || []).map(c => {
       const cu = users.get(c.userId);
       return { id: c.id, text: c.text, ts: c.ts, userId: c.userId, name: cu ? cu.name : 'Unknown', photo: cu ? (cu.photo || '') : '' };
@@ -38,7 +44,7 @@ router.put('/me', auth, (req, res) => {
   const u = users.get(req.userId);
   if (!u) return res.status(404).json({ error: 'Not found' });
   const editable = ['name', 'age', 'gender', 'interestedIn', 'lookingFor',
-    'county', 'subcounty', 'bio', 'interests', 'photo', 'photos'];
+    'county', 'subcounty', 'bio', 'interests', 'photo', 'photos', 'settings'];
   editable.forEach(f => {
     if (req.body[f] !== undefined) u[f] = req.body[f];
   });
@@ -46,7 +52,42 @@ router.put('/me', auth, (req, res) => {
   res.json(stripUser(u));
 });
 
-// Discover / filter users
+// Change password (Settings)
+router.post('/change-password', auth, async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || !newPassword) return res.status(400).json({ error: 'Current and new password required' });
+  if (newPassword.length < 6) return res.status(400).json({ error: 'New password must be at least 6 characters' });
+  const u = users.get(req.userId);
+  if (!u) return res.status(404).json({ error: 'Not found' });
+  const ok = await bcrypt.compare(currentPassword, u.password);
+  if (!ok) return res.status(401).json({ error: 'Current password is incorrect' });
+  u.password = await bcrypt.hash(newPassword, 10);
+  users.set(req.userId, u);
+  res.json({ ok: true });
+});
+
+// Delete my account (Settings)
+router.delete('/me', auth, (req, res) => {
+  const u = users.get(req.userId);
+  if (!u) return res.status(404).json({ error: 'Not found' });
+  const id = req.userId;
+  emails.delete(u.email);
+  users.delete(id);
+  likes.delete(id);
+  for (const [k, s] of likes.entries()) s.delete(id);
+  for (let i = matches.length - 1; i >= 0; i--) {
+    if (matches[i].userA === id || matches[i].userB === id) matches.splice(i, 1);
+  }
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].from === id || messages[i].to === id) messages.splice(i, 1);
+  }
+  for (let i = posts.length - 1; i >= 0; i--) {
+    if (posts[i].userId === id) posts.splice(i, 1);
+  }
+  res.json({ ok: true });
+});
+
+// Discover / filter users (sorted by shared interests + proximity)
 router.get('/discover', auth, (req, res) => {
   const { lookingFor, county, subcounty, minAge, maxAge } = req.query;
   const me = users.get(req.userId);
@@ -66,25 +107,85 @@ router.get('/discover', auth, (req, res) => {
   const myInterests = new Set(me.interests || []);
   list = list.map(u => {
     const shared = (u.interests || []).filter(i => myInterests.has(i)).length;
-    return { ...stripUser(u), sharedInterests: shared, online: (Date.now() - (u.lastSeen || 0)) < 120000 };
+    return { ...stripUser(u), sharedInterests: shared, online: (Date.now() - (u.lastSeen || 0)) < ONLINE_MS };
   });
   list.sort((a, b) => b.sharedInterests - a.sharedInterests);
 
   res.json(list);
 });
 
-// View another user's public profile + their posts
+// Auto-match suggestions: people who are "close" (same university/location)
+// and share interests, ranked by a combined compatibility score.
+router.get('/suggestions', auth, (req, res) => {
+  const me = users.get(req.userId);
+  if (!me) return res.status(404).json({ error: 'Not found' });
+  const myInterests = new Set(me.interests || []);
+
+  const scored = Array.from(users.values())
+    .filter(u => u.id !== me.id)
+    .map(u => {
+      const shared = (u.interests || []).filter(i => myInterests.has(i)).length;
+      let score = shared * 10;                 // interests weigh most
+      if (u.county === me.county) score += 30; // same university
+      if (u.subcounty === me.subcounty) score += 15; // same location
+      if (u.lookingFor === me.lookingFor) score += 5;
+      const sharedPct = myInterests.size ? Math.round((shared / myInterests.size) * 100) : 0;
+      return {
+        ...stripUser(u),
+        sharedInterests: shared,
+        matchScore: score,
+        matchPercent: Math.min(99, sharedPct + (u.county === me.county ? 30 : 0) + (u.subcounty === me.subcounty ? 15 : 0)),
+        online: (Date.now() - (u.lastSeen || 0)) < ONLINE_MS
+      };
+    })
+    .filter(x => x.matchScore >= 15) // only meaningfully compatible people
+    .sort((a, b) => b.matchScore - a.matchScore)
+    .slice(0, 20);
+
+  res.json(scored);
+});
+
+// View another user's public profile + their posts (and record the profile visit)
 router.get('/profile/:id', auth, (req, res) => {
   const u = users.get(req.params.id);
   if (!u) return res.status(404).json({ error: 'User not found' });
+
+  // Record this profile visit (TikTok-style "who viewed me") — skip self-views
+  if (req.params.id !== req.userId) {
+    profileViews.push({ id: require('uuid').v4(), viewerId: req.userId, viewedId: req.params.id, ts: Date.now() });
+    if (profileViews.length > 5000) profileViews.splice(0, profileViews.length - 5000);
+    notify(req.params.id, 'profile_view', `👀 ${users.get(req.userId) ? users.get(req.userId).name : 'Someone'} viewed your profile`, req.userId);
+  }
+
   const theirPosts = posts
     .filter(p => p.userId === u.id)
     .sort((a, b) => b.ts - a.ts)
     .map(p => serializePost(p, req.userId));
   res.json({
-    user: { ...stripUser(u), online: (Date.now() - (u.lastSeen || 0)) < 120000 },
+    user: { ...stripUser(u), online: (Date.now() - (u.lastSeen || 0)) < ONLINE_MS },
     posts: theirPosts
   });
+});
+
+// Who viewed my profile (most recent first, with dedupe by viewer)
+router.get('/profile-views', auth, (req, res) => {
+  const me = req.userId;
+  const seen = new Map(); // viewerId -> latest ts
+  for (const v of profileViews) {
+    if (v.viewedId !== me || v.viewerId === me) continue;
+    const cur = seen.get(v.viewerId);
+    if (!cur || v.ts > cur.ts) seen.set(v.viewerId, v.ts);
+  }
+  const list = Array.from(seen.entries())
+    .map(([viewerId, ts]) => {
+      const u = users.get(viewerId);
+      return u
+        ? { ...stripUser(u), viewedAt: ts, online: (Date.now() - (u.lastSeen || 0)) < ONLINE_MS }
+        : null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.viewedAt - a.viewedAt);
+  res.json(list);
 });
 
 // Recently joined members (for the dashboard)
@@ -93,7 +194,16 @@ router.get('/recent', auth, (req, res) => {
     Array.from(users.values())
       .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
       .slice(0, 8)
-      .map(u => ({ ...stripUser(u), online: (Date.now() - (u.lastSeen || 0)) < 120000 }))
+      .map(u => ({ ...stripUser(u), online: (Date.now() - (u.lastSeen || 0)) < ONLINE_MS }))
+  );
+});
+
+// Who is online right now
+router.get('/online', auth, (req, res) => {
+  res.json(
+    Array.from(users.values())
+      .filter(u => u.id !== req.userId && (Date.now() - (u.lastSeen || 0)) < ONLINE_MS)
+      .map(u => stripUser(u))
   );
 });
 
@@ -114,7 +224,10 @@ router.get('/stats', auth, (req, res) => {
   }
   const unreadMessages = messages.filter(m => m.to === me && !m.read).length;
   const myPosts = posts.filter(p => p.userId === me).length;
-  res.json({ matches: myMatches, likesReceived, unreadMessages, myPosts });
+  let profileViewCount = 0;
+  const seen = new Set();
+  profileViews.forEach(v => { if (v.viewedId === me && v.viewerId !== me && !seen.has(v.viewerId)) { seen.add(v.viewerId); profileViewCount++; } });
+  res.json({ matches: myMatches, likesReceived, unreadMessages, myPosts, profileViews: profileViewCount });
 });
 
 // Like a user (creates match if mutual)
@@ -141,6 +254,8 @@ router.post('/like/:id', auth, (req, res) => {
     const themName = users.get(target) ? users.get(target).name : 'Someone';
     notify(req.userId, 'match', `💞 It's a match! You and ${themName} liked each other`, target);
     notify(target, 'match', `💞 It's a match! You and ${meName} liked each other`, req.userId);
+  } else {
+    notify(target, 'like', `❤️ ${users.get(req.userId) ? users.get(req.userId).name : 'Someone'} liked you`, req.userId);
   }
   res.json({ liked: true, matched });
 });
