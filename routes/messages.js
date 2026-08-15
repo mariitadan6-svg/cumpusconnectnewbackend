@@ -6,15 +6,55 @@ const { notify } = require('../utils/notify');
 
 const router = express.Router();
 
+// Server-side authoritative check: never allow digits (any script) in a chat
+// message. Prevents members from sharing phone numbers / contacts, even if
+// they tamper with the client.
+const NUMERIC_BLOCK_REGEX = /[0-9\u0660-\u0669\u06F0-\u06F9\u07C0-\u07C9\u0966-\u096F\u09E6-\u09EF\u0A66-\u0A6F\u0AE6-\u0AEF\u0B66-\u0B6F\u0BE6-\u0BEF\u0C66-\u0C6F\u0CE6-\u0CEF\u0D66-\u0D6F\u0E50-\u0E59\u0ED0-\u0ED9\u0F20-\u0F29\u1040-\u1049\u1090-\u1099\u17E0-\u17E9\u1810-\u1819\u2460-\u2468\u24EA\u2776-\u277E]/;
+const NUMERIC_WORDS = new Set(['zero','one','two','three','four','five','six','seven','eight','nine','ten','eleven','twelve','hundred','thousand']);
+function containsBlockedNumbers(text){
+  if (!text) return false;
+  if (NUMERIC_BLOCK_REGEX.test(text)) return true;
+  const words = String(text).toLowerCase().split(/[^a-z]+/).filter(Boolean);
+  let run = 0;
+  for (const w of words){
+    if (NUMERIC_WORDS.has(w) || w === 'oh'){ run++; if (run >= 3) return true; }
+    else run = 0;
+  }
+  return false;
+}
+
 router.post('/send', auth, (req, res) => {
-  const { to, text } = req.body;
-  if (!to || !text) return res.status(400).json({ error: 'to and text required' });
+  const { to, text, image } = req.body || {};
+  if (!to) return res.status(400).json({ error: 'to required' });
+  const cleanText = (text || '').toString().trim();
+  const hasImage = typeof image === 'string' && image.startsWith('data:image/');
+  if (!cleanText && !hasImage) return res.status(400).json({ error: 'text or image required' });
   if (!users.has(to)) return res.status(404).json({ error: 'Recipient not found' });
-  const msg = { id: uuidv4(), from: req.userId, to, text, ts: Date.now(), read: false };
+
+  // Block sharing of numbers / contacts in the text portion of any message.
+  if (cleanText && containsBlockedNumbers(cleanText)){
+    return res.status(400).json({ error: 'Numbers are not allowed in messages' });
+  }
+  // Cap payload size to keep the JSON store healthy (~8MB per image after
+  // client compression is already applied).
+  if (hasImage && image.length > 8 * 1024 * 1024){
+    return res.status(400).json({ error: 'Image is too large' });
+  }
+
+  const msg = {
+    id: uuidv4(),
+    from: req.userId,
+    to,
+    text: cleanText,
+    image: hasImage ? image : '',
+    ts: Date.now(),
+    read: false
+  };
   messages.push(msg);
   const me = users.get(req.userId);
   // Notify the recipient so they know someone texted them
-  notify(to, 'message', `💬 ${me ? me.name : 'Someone'} sent you a message`, req.userId);
+  const preview = hasImage && !cleanText ? '📷 sent you a photo' : 'sent you a message';
+  notify(to, 'message', `💬 ${me ? me.name : 'Someone'} ${preview}`, req.userId);
   res.json(msg);
 });
 
