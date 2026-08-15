@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const { users, emails } = require('../data/store');
 const { JWT_SECRET } = require('../middleware/auth');
+const { notify } = require('../utils/notify');
 
 const router = express.Router();
 
@@ -52,10 +53,15 @@ router.post('/register', async (req, res) => {
       bio: bio || '',
       interests: Array.isArray(interests) ? interests : [],
       photo: '',
+      photos: [],
+      lastSeen: Date.now(),
       createdAt: Date.now()
     };
     users.set(userId, user);
     emails.set(normEmail, userId);
+
+    // Broadcast to everyone that a new member joined
+    notify('all', 'join', `🎉 ${name} just joined CampusConnect — say hi!`, userId);
 
     const token = jwt.sign({ userId }, JWT_SECRET, { expiresIn: '30d' });
     const { password: _, ...safeUser } = user;

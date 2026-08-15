@@ -1,6 +1,7 @@
 const express = require('express');
-const { users, likes, matches } = require('../data/store');
+const { users, likes, matches, messages, posts } = require('../data/store');
 const { auth } = require('../middleware/auth');
+const { notify } = require('../utils/notify');
 
 const router = express.Router();
 
@@ -8,6 +9,21 @@ function stripUser(u) {
   if (!u) return null;
   const { password, ...safe } = u;
   return safe;
+}
+function serializePost(p, meId) {
+  const a = users.get(p.userId);
+  return {
+    id: p.id, text: p.text, mediaType: p.mediaType, mediaData: p.mediaData, ts: p.ts,
+    author: a
+      ? { id: a.id, name: a.name, photo: a.photo || '', county: a.county }
+      : { id: '', name: 'Unknown', photo: '', county: '' },
+    likeCount: p.likes ? p.likes.size : 0,
+    likedByMe: meId && p.likes ? p.likes.has(meId) : false,
+    comments: (p.comments || []).map(c => {
+      const cu = users.get(c.userId);
+      return { id: c.id, text: c.text, ts: c.ts, userId: c.userId, name: cu ? cu.name : 'Unknown', photo: cu ? (cu.photo || '') : '' };
+    })
+  };
 }
 
 // Get my profile
@@ -22,7 +38,7 @@ router.put('/me', auth, (req, res) => {
   const u = users.get(req.userId);
   if (!u) return res.status(404).json({ error: 'Not found' });
   const editable = ['name', 'age', 'gender', 'interestedIn', 'lookingFor',
-    'county', 'subcounty', 'bio', 'interests', 'photo'];
+    'county', 'subcounty', 'bio', 'interests', 'photo', 'photos'];
   editable.forEach(f => {
     if (req.body[f] !== undefined) u[f] = req.body[f];
   });
@@ -50,11 +66,55 @@ router.get('/discover', auth, (req, res) => {
   const myInterests = new Set(me.interests || []);
   list = list.map(u => {
     const shared = (u.interests || []).filter(i => myInterests.has(i)).length;
-    return { ...stripUser(u), sharedInterests: shared };
+    return { ...stripUser(u), sharedInterests: shared, online: (Date.now() - (u.lastSeen || 0)) < 120000 };
   });
   list.sort((a, b) => b.sharedInterests - a.sharedInterests);
 
   res.json(list);
+});
+
+// View another user's public profile + their posts
+router.get('/profile/:id', auth, (req, res) => {
+  const u = users.get(req.params.id);
+  if (!u) return res.status(404).json({ error: 'User not found' });
+  const theirPosts = posts
+    .filter(p => p.userId === u.id)
+    .sort((a, b) => b.ts - a.ts)
+    .map(p => serializePost(p, req.userId));
+  res.json({
+    user: { ...stripUser(u), online: (Date.now() - (u.lastSeen || 0)) < 120000 },
+    posts: theirPosts
+  });
+});
+
+// Recently joined members (for the dashboard)
+router.get('/recent', auth, (req, res) => {
+  res.json(
+    Array.from(users.values())
+      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+      .slice(0, 8)
+      .map(u => ({ ...stripUser(u), online: (Date.now() - (u.lastSeen || 0)) < 120000 }))
+  );
+});
+
+// Heartbeat — keeps the user "online"
+router.post('/heartbeat', auth, (req, res) => {
+  const u = users.get(req.userId);
+  if (u) { u.lastSeen = Date.now(); users.set(req.userId, u); }
+  res.json({ ok: true });
+});
+
+// Dashboard stats for the logged-in user
+router.get('/stats', auth, (req, res) => {
+  const me = req.userId;
+  const myMatches = matches.filter(m => m.userA === me || m.userB === me).length;
+  let likesReceived = 0;
+  for (const [uid, set] of likes.entries()) {
+    if (uid !== me && set.has(me)) likesReceived++;
+  }
+  const unreadMessages = messages.filter(m => m.to === me && !m.read).length;
+  const myPosts = posts.filter(p => p.userId === me).length;
+  res.json({ matches: myMatches, likesReceived, unreadMessages, myPosts });
 });
 
 // Like a user (creates match if mutual)
@@ -76,6 +136,11 @@ router.post('/like/:id', auth, (req, res) => {
       userB: target,
       ts: Date.now()
     });
+    // Notify BOTH users about the new match
+    const meName = users.get(req.userId) ? users.get(req.userId).name : 'Someone';
+    const themName = users.get(target) ? users.get(target).name : 'Someone';
+    notify(req.userId, 'match', `💞 It's a match! You and ${themName} liked each other`, target);
+    notify(target, 'match', `💞 It's a match! You and ${meName} liked each other`, req.userId);
   }
   res.json({ liked: true, matched });
 });

@@ -11,6 +11,8 @@ const messageRoutes = require('./routes/messages');
 const metaRoutes = require('./routes/meta');
 const chatbotRoutes = require('./routes/chatbot');
 const adminRoutes = require('./routes/admin');
+const postRoutes = require('./routes/posts');
+const notificationRoutes = require('./routes/notifications');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -22,7 +24,7 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' }
 }));
 app.use(cors({ origin: '*', credentials: true }));
-app.use(express.json({ limit: '5mb' }));
+app.use(express.json({ limit: '25mb' })); // raised for photo/video uploads as data URLs
 
 const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 500 });
 app.use('/api/', limiter);
@@ -34,7 +36,7 @@ app.get('/api', (req, res) => {
     name: 'CampusConnect API',
     version: '1.0.0',
     status: 'running',
-    endpoints: ['/api/auth', '/api/users', '/api/messages', '/api/meta', '/api/chatbot', '/api/admin']
+    endpoints: ['/api/auth', '/api/users', '/api/messages', '/api/posts', '/api/notifications', '/api/meta', '/api/chatbot', '/api/admin']
   });
 });
 
@@ -44,6 +46,8 @@ app.use('/api/messages', messageRoutes);
 app.use('/api/meta', metaRoutes);
 app.use('/api/chatbot', chatbotRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/posts', postRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Serve admin panel at /admin
 app.get('/admin', (req, res) => {
@@ -57,7 +61,7 @@ app.get('/', (req, res) => {
     version: '1.0.0',
     status: 'running',
     admin: '/admin',
-    endpoints: ['/api/auth', '/api/users', '/api/messages', '/api/meta', '/api/chatbot', '/api/admin']
+    endpoints: ['/api/auth', '/api/users', '/api/messages', '/api/posts', '/api/notifications', '/api/meta', '/api/chatbot', '/api/admin']
   });
 });
 // Serve ONLY the admin panel static files (frontend is hosted on Netlify)
@@ -78,16 +82,32 @@ app.use(express.static(path.join(__dirname, 'public', 'admin')));
     { name: 'Grace A.', age: 20, gender: 'female', lookingFor: 'dating', county: 'Uasin Gishu', subcounty: 'Ainabkoi', bio: 'Med student. Faith, family, fun.', interests: ['medicine', 'faith', 'music'] },
     { name: 'Hussein A.', age: 27, gender: 'male', lookingFor: 'friendship', county: 'Mombasa', subcounty: 'Mvita', bio: 'Sailor, foodie, storyteller.', interests: ['sailing', 'food', 'travel'] }
   ];
+  const seededIds = [];
   for (const d of demo) {
     const id = uuidv4();
     const email = `${d.name.toLowerCase().split(' ')[0]}@demo.cc`;
     users.set(id, {
       id, email, password: await bcrypt.hash('demo1234', 10),
-      ...d, interestedIn: 'everyone', photo: '', createdAt: Date.now()
+      ...d, interestedIn: 'everyone', photo: '', photos: [], lastSeen: Date.now(), createdAt: Date.now()
     });
     emails.set(email, id);
+    seededIds.push(id);
   }
   console.log(`Seeded ${demo.length} demo users`);
+
+  // Seed a few community posts so the feed isn't empty on first deploy
+  const { posts } = require('./data/store');
+  const seedPosts = [
+    'Karibu CampusConnect! 🎉 Say hi to the community 👋',
+    'Weekend vibes! Who is around Nairobi this Saturday? ☀️',
+    'Just joined — looking forward to meeting amazing people here ❤️',
+    'Anyone up for a coffee hangout in Westlands? ☕',
+    'You can now post photos & videos on the feed! 📸🎬'
+  ];
+  seedPosts.forEach((text, i) => {
+    posts.push({ id: uuidv4(), userId: seededIds[i % seededIds.length], text, mediaType: null, mediaData: '', ts: Date.now() - (i + 1) * 3600000, likes: new Set(), comments: [] });
+  });
+  console.log(`Seeded ${seedPosts.length} demo posts`);
 })();
 
 app.use((err, req, res, next) => {
