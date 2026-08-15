@@ -3,6 +3,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const path = require('path');
 const rateLimit = require('express-rate-limit');
+const compression = require('compression');
 require('dotenv').config();
 
 const authRoutes = require('./routes/auth');
@@ -23,6 +24,7 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
   crossOriginResourcePolicy: { policy: 'cross-origin' }
 }));
+app.use(compression()); // gzip all JSON/static responses — much faster on mobile networks
 app.use(cors({ origin: '*', credentials: true }));
 app.use(express.json({ limit: '25mb' })); // raised for photo/video uploads as data URLs
 
@@ -65,7 +67,7 @@ app.get('/', (req, res) => {
   });
 });
 // Serve ONLY the admin panel static files (frontend is hosted on Netlify)
-app.use(express.static(path.join(__dirname, 'public', 'admin')));
+app.use(express.static(path.join(__dirname, 'public', 'admin'), { maxAge: '1h' }));
 
 // Seed a few demo users so discovery isn't empty on first deploy
 (async () => {

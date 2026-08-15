@@ -28,7 +28,7 @@ router.post('/register', async (req, res) => {
     if (password.length < 6) {
       return res.status(400).json({ error: 'Password must be at least 6 characters' });
     }
-    if (!name || !county || !subcounty || !lookingFor) {
+    if (!name || !county || !lookingFor) {
       return res.status(400).json({ error: 'Missing required profile fields' });
     }
 
@@ -49,7 +49,7 @@ router.post('/register', async (req, res) => {
       interestedIn: interestedIn || 'everyone',
       lookingFor, // 'hookup' | 'friendship' | 'dating'
       county,
-      subcounty,
+      subcounty: subcounty || '',
       bio: bio || '',
       interests: Array.isArray(interests) ? interests : [],
       photo: '',
