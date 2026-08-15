@@ -429,6 +429,7 @@ html, body {
 @media (max-width: 1000px) {
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
   .row-2 { grid-template-columns: 1fr; }
+  .main { padding: 24px 20px; }
 }
 @media (max-width: 720px) {
   .sidebar { width: 72px; padding: 20px 8px; }
@@ -436,7 +437,18 @@ html, body {
   .sb-logo { justify-content: center; }
   .sb-item { justify-content: center; padding: 12px; }
   .sb-item.active::before { display: none; }
-  .main { padding: 20px; }
+  .main { padding: 16px 12px; }
   .stats-grid { grid-template-columns: 1fr; }
   .search-input { min-width: 0; width: 100%; }
+
+  /* Mobile fit: nothing clipped, everything reachable */
+  .login-card { width: calc(100vw - 32px); }
+  .topbar { flex-wrap: wrap; gap: 12px; }
+  .topbar h2 { font-size: 20px; }
+  .panel { padding: 16px; }
+  .vibe-chart { gap: 12px; padding: 20px 8px; }
+  .cb-row .cb-name { width: 100px; }
+  .tbl { min-width: 640px; }
+  .msg-row-h { flex-wrap: wrap; gap: 4px; }
+  .set-item { flex-wrap: wrap; gap: 8px; }
 }
