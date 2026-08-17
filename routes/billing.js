@@ -63,6 +63,12 @@ async function startPayment(req, res, { kind, plan, amount, credits, description
     payment.updatedAt  = Date.now();
     if (payment.checkoutId) kcbRefIndex.set(payment.checkoutId, paymentId);
     if (payment.merchantId) kcbRefIndex.set(payment.merchantId, paymentId);
+    // Also index by the invoice/account reference we sent to KCB — that is
+    // what comes back in BillRefNumber on the real C2B success callback.
+    try {
+      const invoice = kcb.buildInvoiceNumber(paymentId);
+      if (invoice) kcbRefIndex.set(invoice, paymentId);
+    } catch(_) {}
     return res.json({
       ok: true,
       paymentId,
@@ -136,14 +142,47 @@ router.get('/payment/:id', auth, (req, res) => {
 // Mounted TWICE by server.js: at /api/billing/callback AND at /callback so
 // the KCB_CALLBACK_URL can be either.
 async function kcbCallback(req, res) {
+  // Log the raw callback body so any future shape change from KCB is
+  // debuggable from the Render logs without needing to reproduce a live push.
+  try { console.log('KCB callback RAW:', JSON.stringify(req.body || {})); } catch(_) {}
   const parsed = kcb.parseCallback(req.body || {});
-  console.log('KCB callback:', JSON.stringify({ status: parsed.status, code: parsed.code, ref: parsed.ref, desc: parsed.desc }));
+  console.log('KCB callback PARSED:', JSON.stringify({
+    status: parsed.status, code: parsed.code, ref: parsed.ref,
+    embeddedPaymentId: parsed.embeddedPaymentId, accountRef: parsed.accountRef,
+    kcbRef: parsed.kcbRef, desc: parsed.desc
+  }));
 
   let paymentId = null;
-  if (parsed.merchantRequestID && kcbRefIndex.has(parsed.merchantRequestID)) paymentId = kcbRefIndex.get(parsed.merchantRequestID);
+  // 1) Preferred: paymentId embedded in BillRefNumber / InvoiceNumber /
+  //    AccountReference — the shape KCB Buni actually uses on a real C2B
+  //    success receipt (e.g. BillRefNumber "8112320#CCXXXX").
+  if (parsed.embeddedPaymentId && payments.has(parsed.embeddedPaymentId)) paymentId = parsed.embeddedPaymentId;
+  // 2) Daraja-style STK result: match by MerchantRequestID / CheckoutRequestID
+  //    via the kcbRefIndex map we filled when the push was initiated.
+  if (!paymentId && parsed.merchantRequestID && kcbRefIndex.has(parsed.merchantRequestID)) paymentId = kcbRefIndex.get(parsed.merchantRequestID);
   if (!paymentId && parsed.checkoutRequestID && kcbRefIndex.has(parsed.checkoutRequestID)) paymentId = kcbRefIndex.get(parsed.checkoutRequestID);
-  // Fallback — try treating merchantRequestID as our paymentId
+  // 3) Fallback — treat merchantRequestID as our paymentId (some tenants echo it back verbatim)
   if (!paymentId && parsed.merchantRequestID && payments.has(parsed.merchantRequestID)) paymentId = parsed.merchantRequestID;
+  // 4) Last-resort fallback for successful C2B receipts that arrive with an
+  //    unusual/missing account reference: if the amount and phone match a
+  //    still-pending payment created in the last 5 minutes, match by that.
+  //    This ONLY runs on parsed.status === 'successful' so it can never
+  //    accidentally cancel a good payment.
+  if (!paymentId && parsed.status === 'successful') {
+    const now = Date.now();
+    const amt = Number((req.body && (req.body.TransAmount || req.body.transAmount)) || 0);
+    const rawPhone = String((req.body && (req.body.MSISDN || req.body.msisdn || req.body.phoneNumber)) || '');
+    const phoneNorm = kcb.normalizePhone(rawPhone);
+    let best = null;
+    payments.forEach(pp => {
+      if (pp.status !== 'pending') return;
+      if ((now - pp.createdAt) > 5 * 60 * 1000) return;
+      if (amt && Number(pp.amount) !== amt) return;
+      if (phoneNorm && pp.phone && pp.phone !== phoneNorm) return;
+      if (!best || pp.createdAt > best.createdAt) best = pp;
+    });
+    if (best) paymentId = best.id;
+  }
 
   const p = paymentId ? payments.get(paymentId) : null;
   if (p && p.status === 'pending') {

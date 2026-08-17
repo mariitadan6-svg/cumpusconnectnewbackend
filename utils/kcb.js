@@ -220,32 +220,86 @@ async function stkPush({ phone, amount, paymentId, description }) {
 }
 
 // Parse a KCB callback payload and normalize the result.
-// KCB Buni typically posts a body with either { Body: { stkCallback: { ResultCode, ResultDesc, CheckoutRequestID, MerchantRequestID, CallbackMetadata:{Item:[...]}}}}
-// or a flatter { resultCode, resultDesc, merchantRequestID, checkoutRequestID, ... }.
+// KCB Buni posts callbacks in THREE different shapes depending on the flow:
+//   (A) Daraja-style STK:  { Body: { stkCallback: { ResultCode, ResultDesc,
+//         MerchantRequestID, CheckoutRequestID, CallbackMetadata: { Item:[...] } } } }
+//   (B) Flat STK result:   { resultCode, resultDesc, merchantRequestID, checkoutRequestID, ... }
+//   (C) C2B receipt (what a REAL successful Buni STK Push actually fires — the
+//         one that made the phone show "transaction successful"):
+//         { TransactionType:"Pay Bill", TransID:"SGS...", TransTime:"...",
+//           TransAmount:"4", BusinessShortCode:"8112320", BillRefNumber:"8112320#CCxxxx",
+//           InvoiceNumber:"8112320#CCxxxx", OrgAccountBalance:"...",
+//           ThirdPartyTransID:"...", MSISDN:"254797977136",
+//           FirstName:"...", MiddleName:"...", LastName:"..." }
+//     Note: shape (C) has NO ResultCode/resultCode at all — presence of TransID
+//     + TransAmount is itself the success signal, and the paymentId is embedded
+//     in BillRefNumber / InvoiceNumber after the '#' separator we built in
+//     buildInvoiceNumber().
 function parseCallback(body) {
   if (!body || typeof body !== 'object') return { status: 'failed', reason: 'Empty callback', ref: null };
   const cb = (body.Body && body.Body.stkCallback) || body.stkCallback || body;
-  const code = Number(
+
+  // Detect the C2B receipt shape (no ResultCode key present anywhere)
+  const hasResultCode = (
+    cb.ResultCode !== undefined || cb.resultCode !== undefined || cb.result_code !== undefined ||
+    cb.ResponseCode !== undefined || cb.responseCode !== undefined
+  );
+  const rawTransId = cb.TransID || cb.transID || cb.TransactionID || cb.transactionId || cb.transaction_id || null;
+  const rawTransAmount = cb.TransAmount || cb.transAmount || cb.trans_amount || null;
+  const isC2BReceipt = !hasResultCode && !!rawTransId && rawTransAmount !== null;
+
+  const code = hasResultCode ? Number(
     cb.ResultCode ?? cb.resultCode ?? cb.result_code ??
     cb.ResponseCode ?? cb.responseCode ?? 1
-  );
-  const desc = String(cb.ResultDesc || cb.resultDesc || cb.ResponseDescription || cb.message || '');
+  ) : (isC2BReceipt ? 0 : 1);
+
+  const desc = String(cb.ResultDesc || cb.resultDesc || cb.ResponseDescription || cb.message || (isC2BReceipt ? 'Success' : ''));
   const merchantRequestID = cb.MerchantRequestID || cb.merchantRequestID || cb.merchantRequestId || null;
   const checkoutRequestID = cb.CheckoutRequestID || cb.checkoutRequestID || cb.checkoutRequestId || null;
+
   // Try to pull the KCB receipt / transaction id
-  let kcbRef = cb.transactionId || cb.TransactionID || cb.mpesaReceiptNumber || cb.MpesaReceiptNumber || null;
-  const items = (cb.CallbackMetadata && cb.CallbackMetadata.Item) || cb.callbackMetadata?.Item || [];
+  let kcbRef = rawTransId || cb.mpesaReceiptNumber || cb.MpesaReceiptNumber || cb.receiptNumber || null;
+  const items = (cb.CallbackMetadata && cb.CallbackMetadata.Item) || (cb.callbackMetadata && cb.callbackMetadata.Item) || [];
   if (Array.isArray(items)) {
     items.forEach(it => {
       const n = (it.Name || it.name || '').toString();
       if (/receipt|transactionid|mpesareceipt/i.test(n)) kcbRef = it.Value || it.value || kcbRef;
     });
   }
+
+  // Extract our internal paymentId from BillRefNumber / InvoiceNumber /
+  // AccountReference. buildInvoiceNumber() formats these as "<till>#<paymentId>".
+  // Some Buni tenants strip the till prefix and return only the ref — accept
+  // both. Also accept a bare 'CC...' account reference.
+  let accountRef = cb.BillRefNumber || cb.billRefNumber || cb.InvoiceNumber || cb.invoiceNumber ||
+                   cb.AccountReference || cb.accountReference || cb.account_reference || null;
+  if (Array.isArray(items)) {
+    items.forEach(it => {
+      const n = (it.Name || it.name || '').toString();
+      if (/account.?ref|bill.?ref|invoice/i.test(n)) accountRef = it.Value || it.value || accountRef;
+    });
+  }
+  let embeddedPaymentId = null;
+  if (accountRef) {
+    const s = String(accountRef);
+    // "<till>#<paymentId>" — take the part after the last '#'
+    const hashIdx = s.lastIndexOf('#');
+    let candidate = hashIdx >= 0 ? s.slice(hashIdx + 1) : s;
+    candidate = candidate.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+    if (candidate) embeddedPaymentId = candidate;
+  }
+
   let status = 'failed';
   if (code === 0) status = 'successful';
   else if (/cancel/i.test(desc)) status = 'cancelled';
   else if (/timeout|expired/i.test(desc)) status = 'timeout';
-  return { status, code, desc, merchantRequestID, checkoutRequestID, kcbRef, ref: merchantRequestID || checkoutRequestID };
+
+  return {
+    status, code, desc,
+    merchantRequestID, checkoutRequestID, kcbRef,
+    accountRef, embeddedPaymentId,
+    ref: embeddedPaymentId || merchantRequestID || checkoutRequestID
+  };
 }
 
 function config() { return { ...CFG, consumerSecret: CFG.consumerSecret ? '***' : '' }; }
