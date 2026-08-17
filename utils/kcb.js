@@ -286,13 +286,27 @@ function parseCallback(body) {
     const hashIdx = s.lastIndexOf('#');
     let candidate = hashIdx >= 0 ? s.slice(hashIdx + 1) : s;
     candidate = candidate.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+    // Some Buni tenants strip the '#' separator and post the ref mashed with
+    // the till prefix, e.g. "8112320CCXXXXXX". Our paymentId format is
+    // 'CC' + <base36 timestamp> + <6 hex> — always begins with 'CC'. So if
+    // the candidate still starts with digits (the till), slice off everything
+    // up to and including the first 'CC' occurrence.
+    if (candidate && /^\d/.test(candidate)) {
+      const ccIdx = candidate.indexOf('CC');
+      if (ccIdx > 0) candidate = candidate.slice(ccIdx);
+    }
     if (candidate) embeddedPaymentId = candidate;
   }
 
   let status = 'failed';
   if (code === 0) status = 'successful';
-  else if (/cancel/i.test(desc)) status = 'cancelled';
-  else if (/timeout|expired/i.test(desc)) status = 'timeout';
+  // KCB Buni / Daraja cancel codes: 1032 (user cancelled), 1037 (timeout on
+  // user side / no PIN entered), 2001 (wrong PIN). Treat all as cancelled so
+  // the frontend exits the "sending" spinner cleanly.
+  else if (code === 1032 || code === 1037) status = 'cancelled';
+  else if (code === 2001) status = 'cancelled';
+  else if (/cancel|declin|reject|abort/i.test(desc)) status = 'cancelled';
+  else if (/timeout|expired|no.?response/i.test(desc)) status = 'timeout';
 
   return {
     status, code, desc,

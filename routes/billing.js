@@ -122,8 +122,11 @@ router.get('/payment/:id', auth, (req, res) => {
   if (!p) return res.status(404).json({ error: 'Payment not found' });
   if (p.userId !== req.userId) return res.status(403).json({ error: 'Not your payment' });
 
-  // Auto-timeout: if pending for > 90s, mark as timeout so the panel closes cleanly
-  if (p.status === 'pending' && (Date.now() - p.createdAt) > 90000) {
+  // Auto-timeout: if pending for > 180s, mark as timeout so the panel closes
+  // cleanly. 180s matches the real Buni STK Push expiry — anything shorter
+  // races a legitimately-approved-but-slow callback and silently "times out"
+  // a payment the user actually authorized.
+  if (p.status === 'pending' && (Date.now() - p.createdAt) > 180000) {
     p.status = 'timeout';
     p.updatedAt = Date.now();
   }
@@ -135,6 +138,23 @@ router.get('/payment/:id', auth, (req, res) => {
     error: p.error, updatedAt: p.updatedAt,
     billing: u ? billingSummary(u) : null
   });
+});
+
+// POST /api/billing/payment/:id/cancel — user tapped Cancel on the STK panel
+// (or the KCB callback never arrived after they cancelled on the phone).
+// Marks the payment cancelled locally so the panel can exit cleanly. Safe:
+// only affects payments that are still 'pending' — a successful callback
+// that races us wins because it flips status first.
+router.post('/payment/:id/cancel', auth, (req, res) => {
+  const p = payments.get(req.params.id);
+  if (!p) return res.status(404).json({ error: 'Payment not found' });
+  if (p.userId !== req.userId) return res.status(403).json({ error: 'Not your payment' });
+  if (p.status === 'pending') {
+    p.status = 'cancelled';
+    p.error  = 'Cancelled by user';
+    p.updatedAt = Date.now();
+  }
+  res.json({ ok: true, id: p.id, status: p.status });
 });
 
 // ---- KCB callback endpoint ----
