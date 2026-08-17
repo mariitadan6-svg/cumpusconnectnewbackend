@@ -45,6 +45,7 @@ router.post('/send', auth, (req, res) => {
 
   // ============= Subscription / credits gating =============
   const me = users.get(req.userId);
+  if (!me) return res.status(401).json({ error: 'Session expired — please log in again.' });
   const threadKey = `${req.userId}:${to}`;
   const existingThread = messages.some(m =>
     (m.from === req.userId && m.to === to) || (m.from === to && m.to === req.userId)

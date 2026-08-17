@@ -1,6 +1,6 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
-const { users, emails, messages, likes, matches } = require('../data/store');
+const { users, emails, messages, likes, matches, posts, notifications, payments, kcbRefIndex } = require('../data/store');
 const { JWT_SECRET } = require('../middleware/auth');
 
 const router = express.Router();
@@ -119,6 +119,114 @@ router.get('/matches', adminAuth, (req, res) => {
     };
   });
   res.json(list);
+});
+
+// ===== Wallet — all payment transactions (successful / cancelled / failed / timeout / pending) =====
+router.get('/payments', adminAuth, (req, res) => {
+  const list = Array.from(payments.values()).map(p => {
+    const u = users.get(p.userId);
+    return { ...p, userName: u ? u.name : 'Unknown', userEmail: u ? u.email : '' };
+  }).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  const totals = { successful: 0, cancelled: 0, failed: 0, timeout: 0, pending: 0, revenue: 0 };
+  list.forEach(p => {
+    if (totals[p.status] !== undefined) totals[p.status]++;
+    if (p.status === 'successful') totals.revenue += Number(p.amount || 0);
+  });
+  res.json({ totals, payments: list });
+});
+
+// ===== Persistence: full data snapshot export / restore =====
+// Used by the standalone Netlify admin panel: it pulls this snapshot every 4
+// minutes and stores it permanently in the browser's localStorage. When the
+// Render free-tier backend sleeps and loses its in-memory data, the Netlify
+// panel POSTs the snapshot back to /restore so nothing is ever lost.
+function buildSnapshot() {
+  const likesObj = {};
+  for (const [k, s] of likes.entries()) likesObj[k] = Array.from(s);
+  return {
+    exportedAt: Date.now(),
+    users: Array.from(users.values()),
+    messages: messages.map(m => ({ ...m })),
+    matches: matches.map(m => ({ ...m })),
+    payments: Array.from(payments.values()).map(p => ({ ...p })),
+    posts: posts.map(p => ({ ...p, likes: Array.from(p.likes || []), dislikes: Array.from(p.dislikes || []) })),
+    notifications: notifications.map(n => ({ ...n, readBy: Array.from(n.readBy || []) })),
+    likes: likesObj
+  };
+}
+
+router.get('/export', adminAuth, (req, res) => {
+  res.json(buildSnapshot());
+});
+
+router.post('/restore', adminAuth, (req, res) => {
+  const s = req.body || {};
+  const stats = { users: 0, messages: 0, matches: 0, payments: 0, posts: 0, notifications: 0, likes: 0 };
+  try {
+    if (Array.isArray(s.users)) {
+      for (const u of s.users) {
+        if (!u || !u.id || users.has(u.id)) continue;
+        users.set(u.id, u);
+        if (u.email) emails.set(u.email, u.id);
+        stats.users++;
+      }
+    }
+    if (Array.isArray(s.messages)) {
+      const seen = new Set(messages.map(m => m.id));
+      for (const m of s.messages) {
+        if (!m || !m.id || seen.has(m.id)) continue;
+        messages.push(m); seen.add(m.id); stats.messages++;
+      }
+      messages.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+    }
+    if (Array.isArray(s.matches)) {
+      const seen = new Set(matches.map(m => m.id));
+      for (const m of s.matches) {
+        if (!m || !m.id || seen.has(m.id)) continue;
+        matches.push(m); seen.add(m.id); stats.matches++;
+      }
+    }
+    if (Array.isArray(s.payments)) {
+      for (const p of s.payments) {
+        if (!p || !p.id) continue;
+        const existing = payments.get(p.id);
+        if (!existing) { payments.set(p.id, p); stats.payments++; }
+        else if ((p.updatedAt || 0) > (existing.updatedAt || 0)) payments.set(p.id, p);
+        if (p.checkoutId) kcbRefIndex.set(p.checkoutId, p.id);
+        if (p.merchantId) kcbRefIndex.set(p.merchantId, p.id);
+      }
+    }
+    if (Array.isArray(s.posts)) {
+      const seen = new Set(posts.map(p => p.id));
+      for (const p of s.posts) {
+        if (!p || !p.id || seen.has(p.id)) continue;
+        posts.push({ ...p, likes: new Set(p.likes || []), dislikes: new Set(p.dislikes || []), comments: p.comments || [] });
+        seen.add(p.id); stats.posts++;
+      }
+      posts.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+    }
+    if (Array.isArray(s.notifications)) {
+      const seen = new Set(notifications.map(n => n.id));
+      for (const n of s.notifications) {
+        if (!n || !n.id || seen.has(n.id)) continue;
+        notifications.push({ ...n, readBy: new Set(n.readBy || []) });
+        seen.add(n.id); stats.notifications++;
+      }
+    }
+    if (s.likes && typeof s.likes === 'object') {
+      for (const [uid, arr] of Object.entries(s.likes)) {
+        if (!Array.isArray(arr)) continue;
+        if (!likes.has(uid)) likes.set(uid, new Set());
+        const set = likes.get(uid);
+        for (const v of arr) if (!set.has(v)) { set.add(v); stats.likes++; }
+      }
+    }
+  } catch (e) {
+    console.error('Restore error:', e.message);
+    return res.status(400).json({ error: 'Invalid snapshot', restored: stats });
+  }
+  console.log('Snapshot restored:', JSON.stringify(stats));
+  res.json({ ok: true, restored: stats });
 });
 
 module.exports = router;

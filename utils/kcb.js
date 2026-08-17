@@ -162,23 +162,23 @@ async function stkPush({ phone, amount, paymentId, description }) {
   const cbUrl = sanitizeCallbackUrl(CFG.callbackUrl);
   const ref   = sanitizeRef(paymentId);
 
-  // KCB Buni STK Push payload — sent in the exact field shape their gateway
-  // validates. Historically their validator has been case-sensitive on
-  // "callBackURL", so we include it under every accepted casing to survive
-  // any minor endpoint variation. We DO NOT send merchantRequestID or
-  // referenceNumber alongside invoiceNumber — those extra fields caused the
-  // gateway to re-parse the account reference and reject the invoice format.
-  // KCB Buni's validator on the STK endpoint requires "remarks" to be a
-  // simple alphanumeric string (letters, digits, and spaces only) with a
-  // bounded length. Anything containing punctuation such as '.', ',', or
-  // '/' triggers "Bad Request - Invalid Remarks". Sanitize the description
-  // to a safe form and include it as BOTH transactionDesc and remarks, as
-  // different Buni deployments look at different keys.
-  const safeRemarks = String(description || 'CampusConnect Payment')
+  // KCB Buni STK Push payload — field names validated against the LIVE
+  // gateway (tested 2026-08-17 with a real prompt to a Safaricom line):
+  //   * Sending BOTH 'transactionDesc' and 'remarks' makes Buni validate the
+  //     pair against its remarks slot and ALWAYS returns
+  //     "Bad Request - Invalid Remarks" — 'transactionDesc' is the Daraja
+  //     (Safaricom) field name and must NOT be sent to Buni at all.
+  //   * 'callBackURL' / 'CallBackURL' (capital URL) are rejected with
+  //     "Bad Request - Invalid CallBackURL"; only lowercase 'callbackUrl'
+  //     is accepted.
+  //   * The accepted shape is exactly: phoneNumber, amount, invoiceNumber,
+  //     shortCode, till, callbackUrl, transactionDescription.
+  // 'transactionDescription' must be short, alphanumeric (spaces allowed).
+  const safeRemarks = String(description || 'CampusConnect')
     .replace(/[^A-Za-z0-9 ]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
-    .slice(0, 40) || 'CampusConnect Payment';
+    .slice(0, 13) || 'CampusConnect';
 
   const payload = {
     phoneNumber: norm,
@@ -186,12 +186,8 @@ async function stkPush({ phone, amount, paymentId, description }) {
     invoiceNumber: invoice,
     shortCode: CFG.shortcode,
     till: CFG.till,
-    callBackURL: cbUrl,
     callbackUrl: cbUrl,
-    CallBackURL: cbUrl,
-    accountReference: ref,
-    transactionDesc: safeRemarks,
-    remarks: safeRemarks
+    transactionDescription: safeRemarks
   };
   const body = JSON.stringify(payload);
   const { status, data, raw } = await httpRequest(CFG.stkEndpoint, {

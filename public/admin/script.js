@@ -95,6 +95,7 @@ function switchView(view) {
     users: ['Users', 'Manage all registered users'],
     matches: ['Matches', 'All successful matches'],
     messages: ['Messages', 'Recent conversations across platform'],
+    wallet: ['Wallet', 'All transactions — successful & failed cancellations'],
     analytics: ['Analytics', 'Deep insights & breakdowns'],
     settings: ['Settings', 'System configuration']
   };
@@ -111,6 +112,7 @@ async function refreshAll() {
     if (CURRENT_VIEW === 'users' || CURRENT_VIEW === 'overview') await loadUsers();
     if (CURRENT_VIEW === 'matches') await loadMatches();
     if (CURRENT_VIEW === 'messages') await loadMessages();
+    if (CURRENT_VIEW === 'wallet') await loadWallet();
   } catch (e) {
     console.error(e);
     if (e.message && e.message.includes('401')) doLogout();
@@ -309,6 +311,50 @@ async function loadMessages() {
       </div>
       <div class="msg-text">${escapeHtml(m.text)}</div>
     </div>
+  `).join('');
+}
+
+// ---------- WALLET ----------
+let WALLET_CACHE = [];
+let WALLET_FILTER = 'all';
+
+async function loadWallet() {
+  const data = await api('/api/admin/payments');
+  WALLET_CACHE = data.payments || [];
+  const t = data.totals || {};
+  animateNumber('w-success', t.successful || 0);
+  animateNumber('w-revenue', t.revenue || 0);
+  animateNumber('w-cancelled', t.cancelled || 0);
+  animateNumber('w-failed', (t.failed || 0) + (t.timeout || 0));
+  document.getElementById('walletCount').textContent = WALLET_CACHE.length;
+  document.querySelectorAll('.filter-btn').forEach(b => {
+    b.onclick = () => {
+      WALLET_FILTER = b.dataset.f;
+      document.querySelectorAll('.filter-btn').forEach(x => x.classList.toggle('active', x === b));
+      renderWallet();
+    };
+  });
+  renderWallet();
+}
+
+function renderWallet() {
+  const body = document.getElementById('walletTable');
+  const list = WALLET_CACHE.filter(p => WALLET_FILTER === 'all' || p.status === WALLET_FILTER);
+  if (!list.length) {
+    body.innerHTML = '<tr><td colspan="8"><div class="empty-state"><i class="fa-solid fa-wallet"></i><p>No transactions found</p></div></td></tr>';
+    return;
+  }
+  body.innerHTML = list.map(p => `
+    <tr>
+      <td><code class="pay-id">${escapeHtml(p.id || '')}</code></td>
+      <td><strong>${escapeHtml(p.userName || 'Unknown')}</strong><br><small style="color:var(--muted)">${escapeHtml(p.userEmail || '')}</small></td>
+      <td style="text-transform:capitalize">${escapeHtml(p.kind || '')}${p.plan ? ' · ' + escapeHtml(p.plan) : ''}${p.credits ? ' · ' + p.credits + 'cr' : ''}</td>
+      <td><strong>KES ${Number(p.amount || 0).toLocaleString()}</strong></td>
+      <td>${escapeHtml(p.phone || '—')}</td>
+      <td><span class="txn-badge ${escapeHtml(p.status || 'pending')}">${escapeHtml(p.status || 'pending')}</span>${p.error ? `<br><small style="color:var(--danger)">${escapeHtml(p.error)}</small>` : ''}</td>
+      <td>${escapeHtml(p.kcbRef || '—')}</td>
+      <td>${p.createdAt ? new Date(p.createdAt).toLocaleString() : '—'}</td>
+    </tr>
   `).join('');
 }
 

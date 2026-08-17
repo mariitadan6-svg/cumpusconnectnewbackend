@@ -452,3 +452,39 @@ html, body {
   .msg-row-h { flex-wrap: wrap; gap: 4px; }
   .set-item { flex-wrap: wrap; gap: 8px; }
 }
+
+/* ============ WALLET VIEW (additive) ============ */
+.wallet-filters { display: flex; gap: 6px; flex-wrap: wrap; }
+.filter-btn {
+  padding: 7px 14px; border-radius: 20px; font-size: 12px; font-weight: 600;
+  background: rgba(255,255,255,.04); border: 1px solid var(--border);
+  color: var(--muted); cursor: pointer; font-family: inherit; transition: all .2s;
+}
+.filter-btn:hover { color: var(--text); background: rgba(255,255,255,.08); }
+.filter-btn.active {
+  background: var(--gradient-1); color: white; border-color: transparent;
+  box-shadow: 0 4px 14px rgba(124,92,255,.35);
+}
+.txn-badge {
+  display: inline-block; padding: 4px 12px; border-radius: 20px;
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px;
+}
+.txn-badge.successful { background: rgba(67,233,123,.15); color: var(--success); }
+.txn-badge.cancelled  { background: rgba(255,179,71,.15); color: var(--warn); }
+.txn-badge.failed     { background: rgba(255,89,117,.15); color: var(--danger); }
+.txn-badge.timeout    { background: rgba(255,89,117,.12); color: #ff8ba0; }
+.txn-badge.pending    { background: rgba(0,212,255,.12); color: var(--accent-3); }
+.pay-id {
+  background: rgba(0,0,0,.4); padding: 4px 8px; border-radius: 6px;
+  font-size: 11px; color: var(--accent-3);
+}
+.wallet-stats .stat-card:hover { transform: translateY(-4px); }
+
+/* ============ SYNC STATUS CHIP (Netlify admin panel) ============ */
+.sync-chip {
+  padding: 8px 14px; border-radius: 20px; font-size: 12px;
+  background: rgba(0,212,255,.1); border: 1px solid rgba(0,212,255,.3);
+  color: var(--accent-3); display: flex; align-items: center; gap: 6px;
+}
+.sync-chip.offline { background: rgba(255,89,117,.1); border-color: rgba(255,89,117,.3); color: var(--danger); }
+.sync-chip i { font-size: 10px; }

@@ -58,6 +58,7 @@
       <button class="sb-item" data-view="users"><i class="fa-solid fa-users"></i><span>Users</span></button>
       <button class="sb-item" data-view="matches"><i class="fa-solid fa-heart"></i><span>Matches</span></button>
       <button class="sb-item" data-view="messages"><i class="fa-solid fa-comments"></i><span>Messages</span></button>
+      <button class="sb-item" data-view="wallet"><i class="fa-solid fa-wallet"></i><span>Wallet</span></button>
       <button class="sb-item" data-view="analytics"><i class="fa-solid fa-chart-line"></i><span>Analytics</span></button>
       <button class="sb-item" data-view="settings"><i class="fa-solid fa-sliders"></i><span>Settings</span></button>
     </nav>
@@ -168,6 +169,53 @@
           <h3><i class="fa-solid fa-comments"></i> Recent Messages <span class="pill" id="msgsCount">0</span></h3>
         </div>
         <div class="msg-feed" id="msgsFeed"></div>
+      </div>
+    </section>
+
+    <!-- WALLET VIEW -->
+    <section class="view" data-view="wallet">
+      <div class="stats-grid wallet-stats">
+        <div class="stat-card grad-4">
+          <div class="sc-icon"><i class="fa-solid fa-circle-check"></i></div>
+          <div class="sc-body"><small>Successful</small><h3 id="w-success">0</h3></div>
+          <div class="sc-spark"></div>
+        </div>
+        <div class="stat-card grad-2">
+          <div class="sc-icon"><i class="fa-solid fa-sack-dollar"></i></div>
+          <div class="sc-body"><small>Revenue (KES)</small><h3 id="w-revenue">0</h3></div>
+          <div class="sc-spark"></div>
+        </div>
+        <div class="stat-card grad-3">
+          <div class="sc-icon"><i class="fa-solid fa-ban"></i></div>
+          <div class="sc-body"><small>Cancelled</small><h3 id="w-cancelled">0</h3></div>
+          <div class="sc-spark"></div>
+        </div>
+        <div class="stat-card grad-1">
+          <div class="sc-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
+          <div class="sc-body"><small>Failed / Timeout</small><h3 id="w-failed">0</h3></div>
+          <div class="sc-spark"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-h">
+          <h3><i class="fa-solid fa-wallet"></i> Transactions <span class="pill" id="walletCount">0</span></h3>
+          <div class="wallet-filters">
+            <button class="filter-btn active" data-f="all">All</button>
+            <button class="filter-btn" data-f="successful">Successful</button>
+            <button class="filter-btn" data-f="cancelled">Cancelled</button>
+            <button class="filter-btn" data-f="failed">Failed</button>
+            <button class="filter-btn" data-f="timeout">Timeout</button>
+            <button class="filter-btn" data-f="pending">Pending</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="tbl">
+            <thead>
+              <tr><th>Payment ID</th><th>User</th><th>Type</th><th>Amount</th><th>Phone</th><th>Status</th><th>KCB Ref</th><th>Date</th></tr>
+            </thead>
+            <tbody id="walletTable"></tbody>
+          </table>
+        </div>
       </div>
     </section>
 
