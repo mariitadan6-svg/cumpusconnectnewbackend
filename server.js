@@ -14,6 +14,7 @@ const chatbotRoutes = require('./routes/chatbot');
 const adminRoutes = require('./routes/admin');
 const postRoutes = require('./routes/posts');
 const notificationRoutes = require('./routes/notifications');
+const billingRoutes = require('./routes/billing');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -36,9 +37,9 @@ app.get('/health', (req, res) => res.json({ ok: true, ts: Date.now() }));
 app.get('/api', (req, res) => {
   res.json({
     name: 'CampusConnect API',
-    version: '1.0.0',
+    version: '1.1.0',
     status: 'running',
-    endpoints: ['/api/auth', '/api/users', '/api/messages', '/api/posts', '/api/notifications', '/api/meta', '/api/chatbot', '/api/admin']
+    endpoints: ['/api/auth', '/api/users', '/api/messages', '/api/posts', '/api/notifications', '/api/meta', '/api/chatbot', '/api/admin', '/api/billing']
   });
 });
 
@@ -50,13 +51,17 @@ app.use('/api/chatbot', chatbotRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/billing', billingRoutes);
 
-// Serve admin panel at /admin
-app.get('/admin', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'admin', 'index.html'));
-});
-// API-only root response (frontend lives on Netlify) — must come BEFORE the
-// admin static mount so express.static's index.html doesn't capture it.
+// KCB Buni STK Push callback — also accepted at the bare /callback path so
+// the KCB_CALLBACK_URL configured on the merchant portal can point either
+// to /callback or /api/billing/callback and both will work.
+app.post('/callback', express.json({ limit: '2mb' }), billingRoutes.kcbCallback);
+
+// Serve the admin panel at /admin (frontend lives on Netlify — it is no
+// longer shipped inside this repo's public/ folder)
+app.use('/admin', express.static(path.join(__dirname, 'public', 'admin'), { maxAge: '1h' }));
+// API-only root response (frontend lives on Netlify)
 app.get('/', (req, res) => {
   res.json({
     name: 'CampusConnect API',
@@ -66,8 +71,6 @@ app.get('/', (req, res) => {
     endpoints: ['/api/auth', '/api/users', '/api/messages', '/api/posts', '/api/notifications', '/api/meta', '/api/chatbot', '/api/admin']
   });
 });
-// Serve ONLY the admin panel static files (frontend is hosted on Netlify)
-app.use(express.static(path.join(__dirname, 'public', 'admin'), { maxAge: '1h' }));
 
 // Seed a few demo users so discovery isn't empty on first deploy
 (async () => {
@@ -90,7 +93,9 @@ app.use(express.static(path.join(__dirname, 'public', 'admin'), { maxAge: '1h' }
     const email = `${d.name.toLowerCase().split(' ')[0]}@demo.cc`;
     users.set(id, {
       id, email, password: await bcrypt.hash('demo1234', 10),
-      ...d, interestedIn: 'everyone', photo: '', photos: [], lastSeen: Date.now(), createdAt: Date.now()
+      ...d, interestedIn: 'everyone', photo: '', photos: [], lastSeen: Date.now(), createdAt: Date.now(),
+      subscription: { active: false, plan: null, activatedAt: 0, expiresAt: 0 },
+      verified: false, credits: 0, dmStartsUsed: 0, mediaPostsUsed: 0
     });
     emails.set(email, id);
     seededIds.push(id);

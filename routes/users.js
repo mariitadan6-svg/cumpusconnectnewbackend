@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const { users, likes, matches, messages, posts, profileViews, emails, notifications } = require('../data/store');
 const { auth } = require('../middleware/auth');
 const { notify } = require('../utils/notify');
+const { isSubscribed, checkPhotoGallery, billingSummary } = require('../utils/monetization');
 
 const router = express.Router();
 
@@ -12,6 +13,8 @@ const ONLINE_MS = 120000;
 function stripUser(u) {
   if (!u) return null;
   const { password, ...safe } = u;
+  // Public-safe verified flag (derived from active subscription)
+  safe.verified = isSubscribed(u);
   return safe;
 }
 function serializePost(p, meId) {
@@ -43,6 +46,13 @@ router.get('/me', auth, (req, res) => {
 router.put('/me', auth, (req, res) => {
   const u = users.get(req.userId);
   if (!u) return res.status(404).json({ error: 'Not found' });
+
+  // Gate: unpaid members can only keep up to FREE_LIMITS.maxPhotos gallery photos
+  if (Array.isArray(req.body.photos)) {
+    const g = checkPhotoGallery(u, req.body.photos.length);
+    if (!g.ok) return res.status(402).json({ error: g.reason, code: g.code });
+  }
+
   const editable = ['name', 'age', 'gender', 'interestedIn', 'lookingFor',
     'county', 'subcounty', 'bio', 'interests', 'photo', 'photos', 'settings'];
   editable.forEach(f => {

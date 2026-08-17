@@ -1,8 +1,10 @@
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
-const { messages, users } = require('../data/store');
+const { messages, users, chatReplies } = require('../data/store');
 const { auth } = require('../middleware/auth');
 const { notify } = require('../utils/notify');
+const { checkChatSend, isSubscribed, FREE_LIMITS } = require('../utils/monetization');
+// (isSubscribed used to expose verified badge on conversation partners)
 
 const router = express.Router();
 
@@ -41,6 +43,34 @@ router.post('/send', auth, (req, res) => {
     return res.status(400).json({ error: 'Image is too large' });
   }
 
+  // ============= Subscription / credits gating =============
+  const me = users.get(req.userId);
+  const threadKey = `${req.userId}:${to}`;
+  const existingThread = messages.some(m =>
+    (m.from === req.userId && m.to === to) || (m.from === to && m.to === req.userId)
+  );
+  const freeUsed = chatReplies.get(threadKey) || 0;
+  const gate = checkChatSend(me, existingThread, me.dmStartsUsed || 0, freeUsed);
+  if (!gate.ok) {
+    return res.status(402).json({ error: gate.reason, code: gate.code });
+  }
+  // Deduct one credit if this reply is past the free allowance
+  if (gate.chargeCredit) {
+    if ((me.credits || 0) <= 0) return res.status(402).json({ error: 'Not enough credits. Buy credits to continue.', code: 'need_credits' });
+    me.credits = (me.credits || 0) - 1;
+  }
+  // Track a newly-started DM (only when the user is NOT subscribed, and it is
+  // truly a new thread — this preserves the "3 free DM starts" rule).
+  if (!isSubscribed(me) && !existingThread) {
+    me.dmStartsUsed = (me.dmStartsUsed || 0) + 1;
+  }
+  // Bump per-thread free reply counter for unsubscribed users
+  if (!isSubscribed(me) && existingThread && !gate.chargeCredit) {
+    chatReplies.set(threadKey, freeUsed + 1);
+  }
+  users.set(req.userId, me);
+  // =========================================================
+
   const msg = {
     id: uuidv4(),
     from: req.userId,
@@ -51,11 +81,10 @@ router.post('/send', auth, (req, res) => {
     read: false
   };
   messages.push(msg);
-  const me = users.get(req.userId);
   // Notify the recipient so they know someone texted them
   const preview = hasImage && !cleanText ? '📷 sent you a photo' : 'sent you a message';
   notify(to, 'message', `💬 ${me ? me.name : 'Someone'} ${preview}`, req.userId);
-  res.json(msg);
+  res.json({ ...msg, credits: me.credits, chargedCredit: !!gate.chargeCredit });
 });
 
 router.get('/with/:userId', auth, (req, res) => {
@@ -85,6 +114,7 @@ router.get('/conversations', auth, (req, res) => {
     const u = users.get(pid);
     if (!u) return null;
     const { password, ...safe } = u;
+    safe.verified = isSubscribed(u);
     return {
       user: safe,
       lastMessage: info.lastMessage,

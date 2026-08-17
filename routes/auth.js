@@ -54,6 +54,12 @@ router.post('/register', async (req, res) => {
       interests: Array.isArray(interests) ? interests : [],
       photo: '',
       photos: [],
+      // Monetization state (subscription + credits + DM starts counter)
+      subscription: { active: false, plan: null, activatedAt: 0, expiresAt: 0 },
+      verified: false,
+      credits: 0,
+      dmStartsUsed: 0,
+      mediaPostsUsed: 0,
       settings: {
         notifyMatches: true,
         notifyMessages: true,

@@ -3,6 +3,7 @@ const { v4: uuidv4 } = require('uuid');
 const { posts, users } = require('../data/store');
 const { auth } = require('../middleware/auth');
 const { notify } = require('../utils/notify');
+const { checkPostMedia, isSubscribed } = require('../utils/monetization');
 
 const router = express.Router();
 
@@ -15,8 +16,8 @@ function serialize(p, meId) {
     mediaData: p.mediaData,
     ts: p.ts,
     author: a
-      ? { id: a.id, name: a.name, photo: a.photo || '', county: a.county }
-      : { id: '', name: 'Unknown', photo: '', county: '' },
+      ? { id: a.id, name: a.name, photo: a.photo || '', county: a.county, verified: isSubscribed(a) }
+      : { id: '', name: 'Unknown', photo: '', county: '', verified: false },
     likeCount: p.likes ? p.likes.size : 0,
     dislikeCount: p.dislikes ? p.dislikes.size : 0,
     likedByMe: meId && p.likes ? p.likes.has(meId) : false,
@@ -44,6 +45,15 @@ router.post('/', auth, (req, res) => {
   if (mediaData && typeof mediaData === 'string' && mediaData.length > 24 * 1024 * 1024) {
     return res.status(400).json({ error: 'Media too large (max ~18MB)' });
   }
+
+  // Gate: unpaid members may post at most FREE_LIMITS.maxPostMedia media posts total.
+  const me = users.get(req.userId);
+  if (mediaData) {
+    const currentMediaCount = posts.filter(p => p.userId === req.userId && p.mediaData).length;
+    const gate = checkPostMedia(me, true, currentMediaCount);
+    if (!gate.ok) return res.status(402).json({ error: gate.reason, code: gate.code });
+  }
+
   const post = {
     id: uuidv4(),
     userId: req.userId,
@@ -56,6 +66,7 @@ router.post('/', auth, (req, res) => {
     comments: []
   };
   posts.push(post);
+  if (mediaData && me) { me.mediaPostsUsed = (me.mediaPostsUsed || 0) + 1; users.set(req.userId, me); }
   res.json(serialize(post, req.userId));
 });
 
