@@ -33,11 +33,16 @@ router.post('/register', async (req, res) => {
     }
 
     const normEmail = email.toLowerCase().trim();
-    if (emails.has(normEmail)) {
-      return res.status(409).json({ error: 'Email already in use' });
-    }
 
     const hashed = await bcrypt.hash(password, 10);
+
+    // Duplicate-email guard placed AFTER the async hashing and checked again
+    // right before the insert, in the same synchronous block. Two simultaneous
+    // requests can therefore never both pass — only one profile is ever created.
+    if (emails.has(normEmail)) {
+      return res.status(409).json({ error: 'This email is already registered — please log in instead.' });
+    }
+
     const userId = uuidv4();
     const user = {
       id: userId,

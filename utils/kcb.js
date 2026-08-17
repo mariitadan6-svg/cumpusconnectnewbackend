@@ -60,6 +60,22 @@ function normalizePhone(raw) {
 }
 function isValidPhone(p) { return /^254(7|1)\d{8}$/.test(p); }
 
+// Sanitize a callback URL — KCB Buni rejects URLs with trailing slashes,
+// whitespace, or non-https schemes with "Bad Request - Invalid CallBackURL".
+// Also ensures https:// is present.
+function sanitizeCallbackUrl(raw) {
+  let s = String(raw || '').trim();
+  if (!s) return '';
+  // Strip surrounding quotes if someone quoted the env var
+  s = s.replace(/^["']+|["']+$/g, '');
+  // Force https
+  if (/^http:\/\//i.test(s)) s = 'https://' + s.slice(7);
+  if (!/^https:\/\//i.test(s)) s = 'https://' + s.replace(/^\/+/, '');
+  // Strip trailing slash (KCB validator dislikes it on some endpoints)
+  s = s.replace(/\/+$/, '');
+  return s;
+}
+
 async function getToken() {
   const now = Date.now();
   if (CACHED_TOKEN && CACHED_TOKEN_EXP - 30000 > now) return CACHED_TOKEN;
@@ -109,10 +125,18 @@ async function getToken() {
   throw err;
 }
 
-// invoiceNumber format per KCB email: <Till/Account>#<reference> or <Till>-<reference>
+// invoiceNumber format per KCB email (Eddy Munene, Digital Financial Services):
+//   "<Till/Account>#<accountRef>"  (hash separator preferred)
+// The account reference must NOT itself contain '#' or '-' or whitespace,
+// otherwise KCB's parser splits it in the wrong place and returns
+// "The format in which the invoice number was passed is incorrect."
+function sanitizeRef(ref) {
+  return String(ref || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+}
 function buildInvoiceNumber(paymentId) {
-  const till = CFG.till || CFG.shortcode || '';
-  return `${till}#${paymentId}`;
+  const till = String(CFG.till || CFG.shortcode || '').replace(/\D+/g, '');
+  const ref  = sanitizeRef(paymentId);
+  return `${till}#${ref}`;
 }
 
 /**
@@ -135,18 +159,39 @@ async function stkPush({ phone, amount, paymentId, description }) {
   }
   const token = await getToken();
   const invoice = buildInvoiceNumber(paymentId);
+  const cbUrl = sanitizeCallbackUrl(CFG.callbackUrl);
+  const ref   = sanitizeRef(paymentId);
+
+  // KCB Buni STK Push payload — sent in the exact field shape their gateway
+  // validates. Historically their validator has been case-sensitive on
+  // "callBackURL", so we include it under every accepted casing to survive
+  // any minor endpoint variation. We DO NOT send merchantRequestID or
+  // referenceNumber alongside invoiceNumber — those extra fields caused the
+  // gateway to re-parse the account reference and reject the invoice format.
+  // KCB Buni's validator on the STK endpoint requires "remarks" to be a
+  // simple alphanumeric string (letters, digits, and spaces only) with a
+  // bounded length. Anything containing punctuation such as '.', ',', or
+  // '/' triggers "Bad Request - Invalid Remarks". Sanitize the description
+  // to a safe form and include it as BOTH transactionDesc and remarks, as
+  // different Buni deployments look at different keys.
+  const safeRemarks = String(description || 'CampusConnect Payment')
+    .replace(/[^A-Za-z0-9 ]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 40) || 'CampusConnect Payment';
+
   const payload = {
     phoneNumber: norm,
     amount: kes,
     invoiceNumber: invoice,
     shortCode: CFG.shortcode,
     till: CFG.till,
-    callBackURL: CFG.callbackUrl,
-    accountReference: paymentId,
-    transactionDesc: (description || 'CampusConnect').slice(0, 60),
-    // Common extra fields many Buni sandboxes/prod builds expect
-    merchantRequestID: paymentId,
-    referenceNumber: paymentId
+    callBackURL: cbUrl,
+    callbackUrl: cbUrl,
+    CallBackURL: cbUrl,
+    accountReference: ref,
+    transactionDesc: safeRemarks,
+    remarks: safeRemarks
   };
   const body = JSON.stringify(payload);
   const { status, data, raw } = await httpRequest(CFG.stkEndpoint, {
@@ -209,4 +254,4 @@ function parseCallback(body) {
 
 function config() { return { ...CFG, consumerSecret: CFG.consumerSecret ? '***' : '' }; }
 
-module.exports = { stkPush, parseCallback, getToken, normalizePhone, isValidPhone, config, CFG };
+module.exports = { stkPush, parseCallback, getToken, normalizePhone, isValidPhone, sanitizeCallbackUrl, buildInvoiceNumber, config, CFG };
