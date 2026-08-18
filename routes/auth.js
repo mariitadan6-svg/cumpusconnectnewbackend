@@ -57,7 +57,7 @@ router.post('/register', async (req, res) => {
       subcounty: subcounty || '',
       bio: bio || '',
       interests: Array.isArray(interests) ? interests : [],
-      photo: '',
+      photo: typeof req.body.photo === 'string' ? req.body.photo : '', // profile picture captured at signup
       photos: [],
       // Monetization state (subscription + credits + DM starts counter)
       subscription: { active: false, plan: null, activatedAt: 0, expiresAt: 0 },

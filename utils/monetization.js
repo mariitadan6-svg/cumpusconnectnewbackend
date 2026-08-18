@@ -12,8 +12,8 @@ const PLANS = {
   monthly: { id: 'monthly', label: 'Monthly', price: 50, durationMs: 30 * 24 * 60 * 60 * 1000 }
 };
 
-// Credit bundles — 1 KES = 15 credits (1 credit lets you reply once to a chat
-// beyond the free 5). Bundles at 4, 8, 12, 16, 20 KES.
+// Credit bundles — 1 KES = 15 credits (1 credit = 1 message beyond the free
+// allowance). Bundles at 4, 8, 12, 16, 20 KES.
 const CREDIT_RATE = 15; // credits per 1 KES
 const CREDIT_BUNDLES = [4, 8, 12, 16, 20].map(kes => ({
   id: 'c' + kes,
@@ -24,8 +24,9 @@ const CREDIT_BUNDLES = [4, 8, 12, 16, 20].map(kes => ({
 
 // Free-tier limits (per Instagram-style restrictions)
 const FREE_LIMITS = {
-  dmStarts: 3,          // unpaid users may start at most 3 new conversations, ever
-  freeRepliesPerChat: 5,// then each next reply in that chat costs 1 credit
+  dmStarts: 3,          // legacy counter, kept for backwards compatibility
+  freeMessagesTotal: 5, // verified members get 5 free messages per subscription period...
+  freeRepliesPerChat: 2,// ...of which at most 2 free messages per chat thread; then 1 credit per message
   maxPhotos: 2,         // profile gallery cap for unpaid users (0..maxPhotos)
   maxPostMedia: 2       // unpaid users may post at most 2 media posts total
 };
@@ -68,6 +69,9 @@ function applySubscription(user, planId) {
     activatedAt: now,
     expiresAt: base + plan.durationMs
   };
+  // Each new subscription period refreshes the free-message allowance, so a
+  // daily renewal gives the member 5 fresh free messages again.
+  user.freeMessagesUsed = 0;
   user.verified = true;
 }
 
@@ -96,24 +100,24 @@ function checkPhotoGallery(user, incomingCount) {
   return { ok: true };
 }
 
-// Chat gating — combines "DM starts" and "5 free replies then credits".
-// existingThread = true if the two users already have messages between them.
-function checkChatSend(user, existingThread, dmStartsUsed, freeUsedInThread) {
-  if (isSubscribed(user)) return { ok: true, chargeCredit: false };
-  if (!existingThread) {
-    if (dmStartsUsed >= FREE_LIMITS.dmStarts) {
-      return { ok: false, code: 'need_subscription', reason: `Free members can only start ${FREE_LIMITS.dmStarts} conversations. Subscribe to DM unlimited members.` };
-    }
-    return { ok: true, chargeCredit: false }; // first message opens the thread
+// Chat gating — messaging is a verified (subscribed) feature.
+// Free members can only VIEW profiles; sending any message requires an active
+// subscription. Verified members get FREE_LIMITS.freeMessagesTotal free messages
+// per subscription period, capped at FREE_LIMITS.freeRepliesPerChat free messages
+// per chat thread — beyond that each message costs 1 credit.
+// threadFreeUsed = number of free messages already used in this chat thread.
+function checkChatSend(user, threadFreeUsed) {
+  if (!isSubscribed(user)) {
+    return { ok: false, code: 'need_subscription', reason: 'Messaging is a verified feature. Subscribe to start chatting with members.' };
   }
-  // Existing thread — 5 free replies, then credits kick in
-  if (freeUsedInThread < FREE_LIMITS.freeRepliesPerChat) {
-    return { ok: true, chargeCredit: false };
+  const totalFreeUsed = user.freeMessagesUsed || 0;
+  if (totalFreeUsed < FREE_LIMITS.freeMessagesTotal && (threadFreeUsed || 0) < FREE_LIMITS.freeRepliesPerChat) {
+    return { ok: true, chargeCredit: false, consumeFree: true };
   }
-  if ((user.credits || 0) <= 0) {
-    return { ok: false, code: 'need_credits', reason: `You've used your ${FREE_LIMITS.freeRepliesPerChat} free replies in this chat. Buy credits to continue (1 credit = 1 reply).` };
+  if ((user.credits || 0) > 0) {
+    return { ok: true, chargeCredit: true };
   }
-  return { ok: true, chargeCredit: true };
+  return { ok: false, code: 'need_credits', reason: `Your ${FREE_LIMITS.freeMessagesTotal} free messages are used up. Buy credits to keep chatting (1 credit = 1 message).` };
 }
 
 module.exports = {

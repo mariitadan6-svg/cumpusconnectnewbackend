@@ -29,8 +29,26 @@ app.use(compression()); // gzip all JSON/static responses — much faster on mob
 app.use(cors({ origin: '*', credentials: true }));
 app.use(express.json({ limit: '25mb' })); // raised for photo/video uploads as data URLs
 
-const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 500 });
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 2000, // raised: the app polls regularly, so 500/15min caused 429 lockouts
+  standardHeaders: true,
+  legacyHeaders: false,
+  // ALWAYS answer with JSON so clients never crash parsing the plain-text
+  // "Too many requests" body ("Unexpected token 'T' ... is not valid JSON")
+  handler: (req, res) => res.status(429).json({ error: 'Server is busy — please wait a few seconds and try again.' })
+});
 app.use('/api/', limiter);
+
+// Auto-persist: after any successful write, save the in-memory store to disk
+// (debounced) so a free-tier sleep/restart never loses users or payments.
+const { persist } = require('./data/store');
+app.use((req, res, next) => {
+  res.on('finish', () => {
+    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method) && res.statusCode < 400) persist();
+  });
+  next();
+});
 
 app.get('/health', (req, res) => res.json({ ok: true, ts: Date.now() }));
 
@@ -72,8 +90,12 @@ app.get('/', (req, res) => {
   });
 });
 
-// Seed a few demo users so discovery isn't empty on first deploy
-(async () => {
+// Restore the persisted store FIRST (survives free-tier sleep/restart so users
+// are never "logged out" by data loss), then seed demo users ONLY when there is
+// genuinely no saved data (true first deploy).
+const { loadFromDisk, users: _seedCheck } = require('./data/store');
+loadFromDisk();
+if (_seedCheck.size === 0) (async () => {
   const bcrypt = require('bcryptjs');
   const { v4: uuidv4 } = require('uuid');
   const { users, emails } = require('./data/store');

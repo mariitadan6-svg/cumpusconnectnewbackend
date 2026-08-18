@@ -33,9 +33,13 @@ router.post('/send', auth, (req, res) => {
   if (!cleanText && !hasImage) return res.status(400).json({ error: 'text or image required' });
   if (!users.has(to)) return res.status(404).json({ error: 'Recipient not found' });
 
-  // Block sharing of numbers / contacts in the text portion of any message.
-  if (cleanText && containsBlockedNumbers(cleanText)){
-    return res.status(400).json({ error: 'Numbers are not allowed in messages' });
+  // Numbers / contacts in chat text are allowed ONLY for verified (subscribed)
+  // members. Fetch the sender up-front so this check and the gating below
+  // share the same user object.
+  const me = users.get(req.userId);
+  if (!me) return res.status(401).json({ error: 'Session expired — please log in again.' });
+  if (cleanText && !isSubscribed(me) && containsBlockedNumbers(cleanText)){
+    return res.status(400).json({ error: 'Sharing numbers in messages is a verified feature. Subscribe to include numbers.' });
   }
   // Cap payload size to keep the JSON store healthy (~8MB per image after
   // client compression is already applied).
@@ -44,30 +48,22 @@ router.post('/send', auth, (req, res) => {
   }
 
   // ============= Subscription / credits gating =============
-  const me = users.get(req.userId);
-  if (!me) return res.status(401).json({ error: 'Session expired — please log in again.' });
   const threadKey = `${req.userId}:${to}`;
-  const existingThread = messages.some(m =>
-    (m.from === req.userId && m.to === to) || (m.from === to && m.to === req.userId)
-  );
-  const freeUsed = chatReplies.get(threadKey) || 0;
-  const gate = checkChatSend(me, existingThread, me.dmStartsUsed || 0, freeUsed);
+  const threadFreeUsed = chatReplies.get(threadKey) || 0;
+  const gate = checkChatSend(me, threadFreeUsed);
   if (!gate.ok) {
     return res.status(402).json({ error: gate.reason, code: gate.code });
   }
-  // Deduct one credit if this reply is past the free allowance
+  // Deduct one credit if this message is past the free allowance
   if (gate.chargeCredit) {
     if ((me.credits || 0) <= 0) return res.status(402).json({ error: 'Not enough credits. Buy credits to continue.', code: 'need_credits' });
     me.credits = (me.credits || 0) - 1;
   }
-  // Track a newly-started DM (only when the user is NOT subscribed, and it is
-  // truly a new thread — this preserves the "3 free DM starts" rule).
-  if (!isSubscribed(me) && !existingThread) {
-    me.dmStartsUsed = (me.dmStartsUsed || 0) + 1;
-  }
-  // Bump per-thread free reply counter for unsubscribed users
-  if (!isSubscribed(me) && existingThread && !gate.chargeCredit) {
-    chatReplies.set(threadKey, freeUsed + 1);
+  // Consume one free message from the current subscription period and track
+  // the per-thread free counter (max FREE_LIMITS.freeRepliesPerChat per chat).
+  if (gate.consumeFree) {
+    me.freeMessagesUsed = (me.freeMessagesUsed || 0) + 1;
+    chatReplies.set(threadKey, threadFreeUsed + 1);
   }
   users.set(req.userId, me);
   // =========================================================
