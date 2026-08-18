@@ -1,11 +1,36 @@
 const express = require('express');
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
+const rateLimit = require('express-rate-limit');
 const { users, emails, messages, likes, matches, posts, notifications, payments, kcbRefIndex } = require('../data/store');
 const { JWT_SECRET } = require('../middleware/auth');
 
 const router = express.Router();
 
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '11connect72';
+// Admin password comes ONLY from the environment — there is NO hardcoded
+// fallback in the source code. If it is missing, admin login stays disabled.
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
+if (!ADMIN_PASSWORD) {
+  console.warn('[security] ADMIN_PASSWORD is not set — admin login is DISABLED until it is configured.');
+}
+
+// Timing-safe comparison so the password check cannot be probed by measuring
+// response time (timing attack).
+function safeEqual(a, b) {
+  const ba = Buffer.from(String(a || ''));
+  const bb = Buffer.from(String(b || ''));
+  if (ba.length !== bb.length) return false;
+  return crypto.timingSafeEqual(ba, bb);
+}
+
+// Strict rate limit on the admin login endpoint — stops brute-force guessing.
+const adminLoginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => res.status(429).json({ error: 'Too many login attempts — please wait 15 minutes and try again.' })
+});
 
 function adminAuth(req, res, next) {
   const header = req.headers.authorization;
@@ -22,11 +47,11 @@ function adminAuth(req, res, next) {
   }
 }
 
-// Admin login
-router.post('/login', (req, res) => {
+// Admin login (behind the strict brute-force limiter)
+router.post('/login', adminLoginLimiter, (req, res) => {
   const { password } = req.body;
   if (!password) return res.status(400).json({ error: 'Password required' });
-  if (password !== ADMIN_PASSWORD) return res.status(401).json({ error: 'Invalid admin password' });
+  if (!ADMIN_PASSWORD || !safeEqual(password, ADMIN_PASSWORD)) return res.status(401).json({ error: 'Invalid admin password' });
   const token = jwt.sign({ admin: true }, JWT_SECRET, { expiresIn: '12h' });
   res.json({ token });
 });

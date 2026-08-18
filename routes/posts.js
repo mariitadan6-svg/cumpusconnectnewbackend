@@ -144,6 +144,23 @@ router.post('/:id/comment', auth, (req, res) => {
   res.json(serialize(p, req.userId));
 });
 
+// Edit my own comment (only the comment's author)
+router.put('/:id/comment/:commentId', auth, (req, res) => {
+  const p = posts.find(x => x.id === req.params.id);
+  if (!p) return res.status(404).json({ error: 'Post not found' });
+  const c = (p.comments || []).find(c => c.id === req.params.commentId);
+  if (!c) return res.status(404).json({ error: 'Comment not found' });
+  if (c.userId !== req.userId) return res.status(403).json({ error: 'Not your comment' });
+  const { text } = req.body || {};
+  if (!text || !text.trim()) return res.status(400).json({ error: 'Comment text required' });
+  if (COMMENT_NUMERIC_REGEX.test(text)) {
+    return res.status(400).json({ error: 'Numbers are not allowed in comments' });
+  }
+  c.text = text.trim();
+  c.editedAt = Date.now();
+  res.json(serialize(p, req.userId));
+});
+
 // Delete a comment (author of comment OR post owner may delete)
 router.delete('/:id/comment/:commentId', auth, (req, res) => {
   const p = posts.find(x => x.id === req.params.id);

@@ -15,6 +15,7 @@ const adminRoutes = require('./routes/admin');
 const postRoutes = require('./routes/posts');
 const notificationRoutes = require('./routes/notifications');
 const billingRoutes = require('./routes/billing');
+const storyRoutes = require('./routes/stories');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -26,7 +27,24 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' }
 }));
 app.use(compression()); // gzip all JSON/static responses — much faster on mobile networks
-app.use(cors({ origin: '*', credentials: true }));
+
+// CORS lockdown: only your own frontends may call the API cross-origin.
+// Set ALLOWED_ORIGINS in Render as a comma-separated list, e.g.
+//   ALLOWED_ORIGINS=https://yourapp.netlify.app,https://your-admin.netlify.app
+// Same-origin calls (the Netlify proxy) carry no Origin header and always pass.
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
+  .split(',').map(s => s.trim()).filter(Boolean);
+app.use(cors({
+  origin: function (origin, cb) {
+    // No Origin header => same-origin/proxy/curl/server-to-server => allow.
+    if (!origin) return cb(null, true);
+    // If no allow-list is configured yet, stay permissive so nothing breaks.
+    if (allowedOrigins.length === 0) return cb(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1) return cb(null, true);
+    return cb(new Error('Not allowed by CORS'));
+  },
+  credentials: true
+}));
 app.use(express.json({ limit: '25mb' })); // raised for photo/video uploads as data URLs
 
 const limiter = rateLimit({
@@ -56,8 +74,7 @@ app.get('/api', (req, res) => {
   res.json({
     name: 'CampusConnect API',
     version: '1.1.0',
-    status: 'running',
-    endpoints: ['/api/auth', '/api/users', '/api/messages', '/api/posts', '/api/notifications', '/api/meta', '/api/chatbot', '/api/admin', '/api/billing']
+    status: 'running'
   });
 });
 
@@ -70,23 +87,25 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/billing', billingRoutes);
+app.use('/api/stories', storyRoutes);
 
 // KCB Buni STK Push callback — also accepted at the bare /callback path so
 // the KCB_CALLBACK_URL configured on the merchant portal can point either
 // to /callback or /api/billing/callback and both will work.
 app.post('/callback', express.json({ limit: '2mb' }), billingRoutes.kcbCallback);
 
-// Serve the admin panel at /admin (frontend lives on Netlify — it is no
-// longer shipped inside this repo's public/ folder)
-app.use('/admin', express.static(path.join(__dirname, 'public', 'admin'), { maxAge: '1h' }));
-// API-only root response (frontend lives on Netlify)
+// Serve the admin panel on a NON-OBVIOUS, configurable path so it is not
+// discoverable by guessing "/admin". Set ADMIN_PATH on Render (e.g.
+// "/manage-x7k2p9q4") — the default here is already non-guessable.
+const ADMIN_PATH = process.env.ADMIN_PATH || '/manage-x7k2p9q4';
+app.use(ADMIN_PATH, express.static(path.join(__dirname, 'public', 'admin'), { maxAge: '1h' }));
+// API-only root response (frontend lives on Netlify) — do NOT advertise the
+// admin path or route list here.
 app.get('/', (req, res) => {
   res.json({
     name: 'CampusConnect API',
     version: '1.0.0',
-    status: 'running',
-    admin: '/admin',
-    endpoints: ['/api/auth', '/api/users', '/api/messages', '/api/posts', '/api/notifications', '/api/meta', '/api/chatbot', '/api/admin']
+    status: 'running'
   });
 });
 
@@ -146,5 +165,5 @@ app.use((err, req, res, next) => {
 
 app.listen(PORT, () => {
   console.log(`🚀 CampusConnect API listening on port ${PORT}`);
-  console.log(`🔐 Admin: http://localhost:${PORT}/admin`);
+  console.log(`🔐 Admin panel served at: ${ADMIN_PATH}  (keep this path secret)`);
 });
