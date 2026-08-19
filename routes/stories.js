@@ -7,7 +7,7 @@ const router = express.Router();
 
 // In-memory stories (Instagram-style, auto-expire after 24 hours).
 // Kept intentionally simple and isolated so it doesn't touch the persisted store.
-const stories = []; // { id, userId, mediaType:'image'|'video', mediaData, ts, viewers:Set }
+const stories = []; // { id, userId, mediaType:'image'|'video', mediaData, caption, ts, viewers:Set }
 
 function prune() {
   const cutoff = Date.now() - 24 * 60 * 60 * 1000;
@@ -23,10 +23,12 @@ function serialize(s, meId) {
     userId: s.userId,
     mediaType: s.mediaType,
     mediaData: s.mediaData,
+    caption: s.caption || '',
     ts: s.ts,
     expiresAt: s.ts + 24 * 60 * 60 * 1000,
     viewed: meId ? s.viewers.has(meId) : false,
     mine: meId === s.userId,
+    viewCount: s.viewers ? s.viewers.size : 0,
     author: u ? { id: u.id, name: u.name, photo: u.photo || '' } : { id: '', name: 'Unknown', photo: '' }
   };
 }
@@ -55,20 +57,22 @@ router.get('/', auth, (req, res) => {
   res.json(list);
 });
 
-// Create a new story
+// Create a new story (now supports optional caption up to 180 chars)
 router.post('/', auth, (req, res) => {
-  const { mediaType, mediaData } = req.body || {};
+  const { mediaType, mediaData, caption } = req.body || {};
   if (!mediaData || !['image', 'video'].includes(mediaType)) {
     return res.status(400).json({ error: 'Story needs an image or video' });
   }
   if (typeof mediaData === 'string' && mediaData.length > 24 * 1024 * 1024) {
     return res.status(400).json({ error: 'Story media too large (max ~18MB)' });
   }
+  const cleanCaption = (typeof caption === 'string' ? caption : '').trim().slice(0, 180);
   const s = {
     id: uuidv4(),
     userId: req.userId,
     mediaType,
     mediaData,
+    caption: cleanCaption,
     ts: Date.now(),
     viewers: new Set()
   };
@@ -81,8 +85,21 @@ router.post('/', auth, (req, res) => {
 router.post('/:id/view', auth, (req, res) => {
   const s = stories.find(x => x.id === req.params.id);
   if (!s) return res.status(404).json({ error: 'Story not found' });
-  s.viewers.add(req.userId);
-  res.json({ ok: true });
+  // don't count the owner's own views in the viewer count
+  if (s.userId !== req.userId) s.viewers.add(req.userId);
+  res.json({ ok: true, viewCount: s.viewers.size });
+});
+
+// Owner-only: list viewers of a story (for the "Seen by X" panel)
+router.get('/:id/viewers', auth, (req, res) => {
+  const s = stories.find(x => x.id === req.params.id);
+  if (!s) return res.status(404).json({ error: 'Story not found' });
+  if (s.userId !== req.userId) return res.status(403).json({ error: 'Not your story' });
+  const list = Array.from(s.viewers).map(id => {
+    const u = users.get(id);
+    return u ? { id: u.id, name: u.name, photo: u.photo || '' } : null;
+  }).filter(Boolean);
+  res.json({ count: list.length, viewers: list });
 });
 
 // Delete my own story
