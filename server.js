@@ -34,14 +34,23 @@ app.use(compression()); // gzip all JSON/static responses — much faster on mob
 // Same-origin calls (the Netlify proxy) carry no Origin header and always pass.
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
   .split(',').map(s => s.trim()).filter(Boolean);
+// Your Netlify sites (frontend + vault admin) are ALWAYS allowed, even if
+// ALLOWED_ORIGINS is not configured on Render. This prevents the CORS 500 that
+// disconnected the Netlify admin panel from the backend. Any extra origins you
+// set in ALLOWED_ORIGINS are added on top. A blocked origin now returns a clean
+// 403 JSON instead of an unhandled 500, so the frontend can show a real message.
+['https://cumpusadmin.netlify.app'].forEach(o => {
+  if (allowedOrigins.indexOf(o) === -1) allowedOrigins.push(o);
+});
 app.use(cors({
   origin: function (origin, cb) {
-    // No Origin header => same-origin/proxy/curl/server-to-server => allow.
+    // No Origin header => same-origin (Netlify proxy), curl, or server-to-server => allow.
     if (!origin) return cb(null, true);
     // If no allow-list is configured yet, stay permissive so nothing breaks.
     if (allowedOrigins.length === 0) return cb(null, true);
     if (allowedOrigins.indexOf(origin) !== -1) return cb(null, true);
-    return cb(new Error('Not allowed by CORS'));
+    // Clean, non-crashing rejection (403) instead of an unhandled 500 error.
+    return cb(null, false);
   },
   credentials: true
 }));
