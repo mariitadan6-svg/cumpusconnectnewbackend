@@ -1,8 +1,10 @@
-// All universities in Kenya with their campus location (town/city).
-// NOTE: The "county" field across the app now represents a UNIVERSITY name,
-// and the "subcounty" field represents that university's LOCATION (town/city).
+// All institutions of higher learning in Kenya with their location (town/city).
+// NOTE: The "county" field across the app represents an INSTITUTION name,
+// and the "subcounty" field represents that institution's LOCATION (town/city).
 // Kept the existing field names to avoid breaking downstream logic, but the
-// data and on-screen labels have been switched to Universities / Location.
+// data and on-screen labels are Institutions / Location.
+// Coverage: chartered universities (public + private), national polytechnics,
+// TVET institutions, KMTC campuses, teacher training colleges and colleges.
 const kenyaUniversities = {
   // ---- Public Universities ----
   "University of Nairobi": ["Nairobi"],
@@ -38,6 +40,9 @@ const kenyaUniversities = {
   "The Co-operative University of Kenya": ["Nairobi"],
   "The Open University of Kenya": ["Nairobi"],
   "National Defence University-Kenya": ["Nakuru"],
+  "University of Embu": ["Embu"],
+  "Kaimosi Friends University": ["Kaimosi"],
+  "Koitalel Samoei University College": ["Nandi Hills"],
 
   // ---- Private Universities ----
   "Strathmore University": ["Nairobi"],
@@ -66,7 +71,131 @@ const kenyaUniversities = {
   "Scott Christian University": ["Machakos"],
   "The East African University": ["Kitengela"],
   "Management University of Africa": ["Nairobi"],
-  "GRETSA University": ["Thika"]
+  "GRETSA University": ["Thika"],
+  "Lukenya University": ["Makueni"],
+  "International Leadership University": ["Nairobi"],
+
+  // ---- National Polytechnics ----
+  "Kenya National Polytechnic": ["Nairobi"],
+  "Kabete National Polytechnic": ["Nairobi"],
+  "Sigalagala National Polytechnic": ["Kakamega"],
+  "Eldoret National Polytechnic": ["Eldoret"],
+  "Kisumu National Polytechnic": ["Kisumu"],
+  "Kenya Coast National Polytechnic": ["Mombasa"],
+  "Kitale National Polytechnic": ["Kitale"],
+  "North Eastern National Polytechnic": ["Garissa"],
+  "Nyandarua National Polytechnic": ["Ol Kalou"],
+  "Nyeri National Polytechnic": ["Nyeri"],
+  "Meru National Polytechnic": ["Meru"],
+  "Bukura National Polytechnic": ["Bungoma"],
+  "Bomet National Polytechnic": ["Bomet"],
+  "Mawego National Polytechnic": ["Homa Bay"],
+  "Shamberere National Polytechnic": ["Kakamega"],
+
+  // ---- Technical & Vocational Institutes (TVET) ----
+  "Nairobi Technical Training Institute": ["Nairobi"],
+  "Kiambu Institute of Science and Technology": ["Kiambu"],
+  "Murang'a Technical Training Institute": ["Murang'a"],
+  "Nakuru College of Technology": ["Nakuru"],
+  "Kericho Technical Training Institute": ["Kericho"],
+  "Kisii National Polytechnic": ["Kisii"],
+  "Mombasa Technical Training Institute": ["Mombasa"],
+  "Thika Technical Training Institute": ["Thika"],
+  "Embu Technical Training Institute": ["Embu"],
+  "Nyeri Technical Training Institute": ["Nyeri"],
+  "Rift Valley Technical Training Institute": ["Eldoret"],
+  "Western Kenya Technical Training Institute": ["Busia"],
+  "Michuki Technical Training Institute": ["Murang'a"],
+  "Gusii Institute of Technology": ["Kisii"],
+  "Bondo Technical Training Institute": ["Bondo"],
+  "Siaya Institute of Technology": ["Siaya"],
+  "Wote Technical Training Institute": ["Wote"],
+  "Kangema Technical Training Institute": ["Murang'a"],
+  "Ol'lessos Technical Training Institute": ["Nandi"],
+  "Bureti Technical Training Institute": ["Kericho"],
+  "Karen Technical Training Institute for the Deaf": ["Nairobi"],
+  "Machakos Technical Institute for the Blind": ["Machakos"],
+  "Sikri Technical Training Institute for the Blind and Deaf": ["Homa Bay"],
+  "Kirinyaga Technical Training Institute": ["Kerugoya"],
+  "Laikipia East Technical Training Institute": ["Nanyuki"],
+  "Kajiado Technical Training Institute": ["Kajiado"],
+  "Narok Technical Training Institute": ["Narok"],
+  "Kilifi North Technical Training Institute": ["Kilifi"],
+  "Mumias West Technical and Vocational College": ["Mumias"],
+  "Bungoma North Technical and Vocational College": ["Bungoma"],
+
+  // ---- KMTC (Kenya Medical Training College) ----
+  "KMTC Nairobi": ["Nairobi"],
+  "KMTC Mombasa": ["Mombasa"],
+  "KMTC Kisumu": ["Kisumu"],
+  "KMTC Nakuru": ["Nakuru"],
+  "KMTC Eldoret": ["Eldoret"],
+  "KMTC Thika": ["Thika"],
+  "KMTC Machakos": ["Machakos"],
+  "KMTC Meru": ["Meru"],
+  "KMTC Kakamega": ["Kakamega"],
+  "KMTC Kisii": ["Kisii"],
+  "KMTC Nyeri": ["Nyeri"],
+  "KMTC Embu": ["Embu"],
+  "KMTC Kitui": ["Kitui"],
+  "KMTC Bungoma": ["Bungoma"],
+  "KMTC Homabay": ["Homa Bay"],
+  "KMTC Siaya": ["Siaya"],
+  "KMTC Murang'a": ["Murang'a"],
+  "KMTC Garissa": ["Garissa"],
+  "KMTC Lodwar": ["Lodwar"],
+  "KMTC Kapenguria": ["Kapenguria"],
+
+  // ---- Teacher Training Colleges (TTC) ----
+  "Kagumo Teachers Training College": ["Nyeri"],
+  "Kenyatta University Confucius Institute TTC": ["Nairobi"],
+  "Machakos Teachers Training College": ["Machakos"],
+  "Thogoto Teachers Training College": ["Kikuyu"],
+  "St. Paul's Kibabii Diploma Teachers Training College": ["Bungoma"],
+  "Narok Teachers Training College": ["Narok"],
+  "Kericho Teachers Training College": ["Kericho"],
+  "Kaimosi Teachers Training College": ["Kaimosi"],
+  "Asumbi Teachers Training College": ["Homa Bay"],
+  "Migori Teachers Training College": ["Migori"],
+  "Eregi Teachers Training College": ["Vihiga"],
+  "Kamwenja Teachers Training College": ["Nyeri"],
+  "Murang'a Teachers Training College": ["Murang'a"],
+  "Mosoriot Teachers Training College": ["Nandi"],
+  "Baringo Teachers Training College": ["Kabarnet"],
+  "Meru Teachers Training College": ["Meru"],
+  "Tambach Teachers Training College": ["Iten"],
+  "Bomet Teachers Training College": ["Bomet"],
+
+  // ---- Other Professional & Specialised Colleges ----
+  "Kenya Institute of Mass Communication": ["Nairobi"],
+  "Kenya Utalii College": ["Nairobi"],
+  "Kenya School of Law": ["Nairobi"],
+  "Kenya School of Government": ["Nairobi"],
+  "Kenya Institute of Administration (KIA)": ["Nairobi"],
+  "Eastern and Southern African Management Institute (ESAMI)": ["Nairobi"],
+  "Kenya Water Institute": ["Nairobi"],
+  "Kenya Forestry College": ["Londiani"],
+  "Kenya Wildlife Service Training Institute": ["Naivasha"],
+  "Bukura Agricultural College": ["Bungoma"],
+  "Egerton University Njoro Campus": ["Njoro"],
+  "Nyahururu National Institute of Science and Technology": ["Nyahururu"],
+  "Railway Training Institute": ["Nairobi"],
+  "Aeronautical College of Kenya": ["Nairobi"],
+  "Nairobi Aviation College": ["Nairobi"],
+
+  // ---- Private Colleges & Institutes ----
+  "Nairobi Institute of Business Studies (NIBS)": ["Nairobi"],
+  "Mount Kenya University College Parklands": ["Nairobi"],
+  "East Africa Institute of Certified Studies": ["Nairobi"],
+  "Kenya Institute of Management (KIM)": ["Nairobi"],
+  "Strathmore University Business School": ["Nairobi"],
+  "African Digital Media Institute": ["Nairobi"],
+  "Buruburu Institute of Fine Arts": ["Nairobi"],
+  "Amboseli Institute of Hospitality and Management": ["Thika"],
+  "Boma International Hospitality College": ["Nairobi"],
+  "International Hotel and Tourism Institute": ["Nairobi"],
+  "Airads College": ["Nairobi"],
+  "Tandaza College": ["Nairobi"]
 };
 
 module.exports = kenyaUniversities;
