@@ -3,7 +3,7 @@ const bcrypt = require('bcryptjs');
 const { users, likes, matches, messages, posts, profileViews, emails, notifications } = require('../data/store');
 const { auth } = require('../middleware/auth');
 const { notify } = require('../utils/notify');
-const { isSubscribed, checkPhotoGallery, billingSummary } = require('../utils/monetization');
+const { isSubscribed, checkPhotoGallery, billingSummary, hasHookupChatUnlock } = require('../utils/monetization');
 
 const router = express.Router();
 
@@ -57,7 +57,8 @@ router.get('/hookup/discover', auth, (req, res) => {
   const myInterests = new Set(me.interests || []);
   list = list.map(u => {
     const shared = (u.interests || []).filter(i => myInterests.has(i)).length;
-    return { ...stripUser(u), sharedInterests: shared, online: (Date.now() - (u.lastSeen || 0)) < ONLINE_MS };
+    return { ...stripUser(u), sharedInterests: shared, online: (Date.now() - (u.lastSeen || 0)) < ONLINE_MS,
+      hookupChatUnlocked: hasHookupChatUnlock(me.id, u.id) };
   });
   list.sort((a, b) => b.sharedInterests - a.sharedInterests);
   res.json(list);
@@ -132,6 +133,10 @@ router.get('/discover', auth, (req, res) => {
   if (!me) return res.status(404).json({ error: 'Not found' });
 
   let list = Array.from(users.values()).filter(u => u.id !== me.id);
+
+  // Hookup members are never shown in the normal Discover feed — they live
+  // exclusively on the dedicated Hookup page (unlocked via one-time payment).
+  list = list.filter(u => u.lookingFor !== 'hookup');
 
   if (lookingFor && lookingFor !== 'all') {
     list = list.filter(u => u.lookingFor === lookingFor);

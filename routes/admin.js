@@ -2,7 +2,7 @@ const express = require('express');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const rateLimit = require('express-rate-limit');
-const { users, emails, messages, likes, matches, posts, notifications, profileViews, stories, payments, kcbRefIndex } = require('../data/store');
+const { users, emails, messages, likes, matches, posts, notifications, profileViews, stories, payments, kcbRefIndex, chatReplies, hookupChatUnlocks } = require('../data/store');
 const { JWT_SECRET } = require('../middleware/auth');
 
 const router = express.Router();
@@ -179,7 +179,9 @@ function buildSnapshot() {
     likes: likesObj,
     emails: Array.from(emails.entries()),
     profileViews: profileViews.map(v => ({ ...v })),
-    stories: stories.map(st => ({ ...st, viewers: Array.from(st.viewers || []) }))
+    stories: stories.map(st => ({ ...st, viewers: Array.from(st.viewers || []) })),
+    chatReplies: Array.from(chatReplies.entries()),
+    hookupChatUnlocks: Array.from(hookupChatUnlocks.entries())
   };
 }
 
@@ -269,6 +271,14 @@ router.post('/restore', adminAuth, (req, res) => {
         const set = likes.get(uid);
         for (const v of arr) if (!set.has(v)) { set.add(v); stats.likes++; }
       }
+    }
+    // Restore paid per-member hookup chat unlocks + per-thread free counters so
+    // paid access is never lost on a backend restart.
+    if (Array.isArray(s.chatReplies)) {
+      for (const [k, v] of s.chatReplies) { if (k && !chatReplies.has(k)) chatReplies.set(k, v); }
+    }
+    if (Array.isArray(s.hookupChatUnlocks)) {
+      for (const [k, v] of s.hookupChatUnlocks) { if (k && !hookupChatUnlocks.has(k)) hookupChatUnlocks.set(k, v); }
     }
   } catch (e) {
     console.error('Restore error:', e.message);

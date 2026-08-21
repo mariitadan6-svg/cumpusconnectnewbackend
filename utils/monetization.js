@@ -29,6 +29,11 @@ const CREDIT_BUNDLES = [
 // One-time price (KES) to unlock the dedicated Hookup page.
 const HOOKUP_PRICE = 100;
 
+// One-time price (KES) to unlock CHATTING with a specific Hookup member.
+// After this single payment the member can keep chatting with that person
+// forever (no per-message charge on that thread).
+const HOOKUP_CHAT_PRICE = 100;
+
 // Free-tier limits (per Instagram-style restrictions)
 const FREE_LIMITS = {
   dmStarts: 3,          // legacy counter, kept for backwards compatibility
@@ -57,6 +62,7 @@ function billingSummary(user) {
     limits: FREE_LIMITS,
     hookupUnlocked: !!user.hookupUnlocked,
     hookupPrice: HOOKUP_PRICE,
+    hookupChatPrice: HOOKUP_CHAT_PRICE,
     plans: Object.values(PLANS),
     bundles: CREDIT_BUNDLES
   };
@@ -92,6 +98,21 @@ function applyCredits(user, credits) {
 function applyHookupUnlock(user) {
   user.hookupUnlocked = true;
   user.hookupUnlockedAt = Date.now();
+}
+
+// ---- Per-member Hookup chat unlock ------------------------------------------
+// A hookup member's PROFILE can be browsed by anyone who unlocked the Hookup
+// page, but TEXTING a hookup member costs a one-time HOOKUP_CHAT_PRICE. Once
+// paid, that thread stays open forever. We track unlocks in a shared store
+// keyed `${payerId}:${targetId}`.
+const { hookupChatUnlocks } = require('../data/store');
+const threadKey = (a, b) => `${a}:${b}`;
+
+function hasHookupChatUnlock(payerId, targetId) {
+  return hookupChatUnlocks.has(threadKey(payerId, targetId));
+}
+function applyHookupChatUnlock(payerId, targetId) {
+  hookupChatUnlocks.set(threadKey(payerId, targetId), { ts: Date.now() });
 }
 
 // ---- Feature gates (server-side authoritative) ----
@@ -135,8 +156,9 @@ function checkChatSend(user, threadFreeUsed) {
 }
 
 module.exports = {
-  PLANS, CREDIT_BUNDLES, HOOKUP_PRICE, FREE_LIMITS,
+  PLANS, CREDIT_BUNDLES, HOOKUP_PRICE, HOOKUP_CHAT_PRICE, FREE_LIMITS,
   isSubscribed, isVerified, billingSummary,
   applySubscription, applyCredits, applyHookupUnlock,
+  applyHookupChatUnlock, hasHookupChatUnlock,
   checkPostMedia, checkPhotoGallery, checkChatSend
 };

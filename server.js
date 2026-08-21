@@ -119,9 +119,9 @@ app.get('/', (req, res) => {
 });
 
 // Restore the persisted store FIRST (survives free-tier sleep/restart so users
-// are never "logged out" by data loss), then seed demo users ONLY when there is
-// genuinely no saved data (true first deploy).
-const { loadFromDisk, users: _seedCheck, saveNow } = require('./data/store');
+// are never "logged out" by data loss). Demo-account seeding has been REMOVED —
+// the platform only ever shows real registered members now.
+const { loadFromDisk, saveNow } = require('./data/store');
 loadFromDisk();
 
 // Boot self-restore: if this instance boots with an incomplete store (fresh
@@ -157,54 +157,13 @@ loadFromDisk();
     if (Array.isArray(s.profileViews)) for (const v of s.profileViews) { if (v && v.id && !seenV.has(v.id)) { st.profileViews.push(v); restored++; } }
     for (const p of (s.payments || [])) { if (!p || !p.id) continue; const ex = st.payments.get(p.id); if (!ex || (p.updatedAt || 0) > (ex.updatedAt || 0)) { st.payments.set(p.id, p); restored++; } if (p.checkoutId) st.kcbRefIndex.set(p.checkoutId, p.id); if (p.merchantId) st.kcbRefIndex.set(p.merchantId, p.id); }
     if (Array.isArray(s.chatReplies)) for (const [k, v] of s.chatReplies) { if (!st.chatReplies.has(k)) st.chatReplies.set(k, v); }
+    if (Array.isArray(s.hookupChatUnlocks) && st.hookupChatUnlocks) for (const [k, v] of s.hookupChatUnlocks) { if (!st.hookupChatUnlocks.has(k)) st.hookupChatUnlocks.set(k, v); }
     if (Array.isArray(s.stories)) { const seenS = new Set(storiesStore.map(x => x.id)); for (const x of s.stories) { if (x && x.id && !seenS.has(x.id)) storiesStore.push({ ...x, viewers: new Set(x.viewers || []) }); } }
     if (restored > 0) { console.log(`Vault boot-restore: hydrated ${restored} records from vault-export.json`); saveNow(); }
   } catch (e) { console.error('Vault boot-restore skipped:', e.message); }
 })();
 
-if (_seedCheck.size === 0) (async () => {
-  const bcrypt = require('bcryptjs');
-  const { v4: uuidv4 } = require('uuid');
-  const { users, emails } = require('./data/store');
-  const demo = [
-    { name: 'Amina W.', age: 22, gender: 'female', lookingFor: 'dating', county: 'University of Nairobi', subcounty: 'Nairobi', bio: 'Coffee lover, dreamer, hiking on weekends.', interests: ['coffee', 'hiking', 'music'] },
-    { name: 'Brian K.', age: 24, gender: 'male', lookingFor: 'friendship', county: 'Jomo Kenyatta University of Agriculture and Technology (JKUAT)', subcounty: 'Juja', bio: 'Software dev. Looking for study buddies.', interests: ['tech', 'coding', 'football'] },
-    { name: 'Cynthia N.', age: 21, gender: 'female', lookingFor: 'hookup', county: 'Maseno University', subcounty: 'Maseno', bio: 'Confident and adventurous.', interests: ['dance', 'nightlife', 'travel'] },
-    { name: 'Dennis O.', age: 26, gender: 'male', lookingFor: 'dating', county: 'Egerton University', subcounty: 'Njoro', bio: 'Photographer, foodie, dog dad.', interests: ['photography', 'food', 'dogs'] },
-    { name: 'Esther M.', age: 23, gender: 'female', lookingFor: 'friendship', county: 'Kenyatta University', subcounty: 'Nairobi', bio: 'Book worm & tea addict.', interests: ['books', 'tea', 'movies'] },
-    { name: 'Felix R.', age: 25, gender: 'male', lookingFor: 'hookup', county: 'Strathmore University', subcounty: 'Nairobi', bio: 'Gym rat, no strings.', interests: ['gym', 'nightlife', 'cars'] },
-    { name: 'Grace A.', age: 20, gender: 'female', lookingFor: 'dating', county: 'Moi University', subcounty: 'Eldoret', bio: 'Med student. Faith, family, fun.', interests: ['medicine', 'faith', 'music'] },
-    { name: 'Hussein A.', age: 27, gender: 'male', lookingFor: 'friendship', county: 'Technical University of Mombasa', subcounty: 'Mombasa', bio: 'Sailor, foodie, storyteller.', interests: ['sailing', 'food', 'travel'] }
-  ];
-  const seededIds = [];
-  for (const d of demo) {
-    const id = uuidv4();
-    const email = `${d.name.toLowerCase().split(' ')[0]}@demo.cc`;
-    users.set(id, {
-      id, email, password: await bcrypt.hash('demo1234', 10),
-      ...d, interestedIn: 'everyone', photo: '', photos: [], lastSeen: Date.now(), createdAt: Date.now(),
-      subscription: { active: false, plan: null, activatedAt: 0, expiresAt: 0 },
-      verified: false, credits: 0, dmStartsUsed: 0, mediaPostsUsed: 0
-    });
-    emails.set(email, id);
-    seededIds.push(id);
-  }
-  console.log(`Seeded ${demo.length} demo users`);
-
-  // Seed a few community posts so the feed isn't empty on first deploy
-  const { posts } = require('./data/store');
-  const seedPosts = [
-    'Karibu CampusConnect! 🎉 Say hi to the community 👋',
-    'Weekend vibes! Who is around Nairobi this Saturday? ☀️',
-    'Just joined — looking forward to meeting amazing people here ❤️',
-    'Anyone up for a coffee hangout in Westlands? ☕',
-    'You can now post photos & videos on the feed! 📸🎬'
-  ];
-  seedPosts.forEach((text, i) => {
-    posts.push({ id: uuidv4(), userId: seededIds[i % seededIds.length], text, mediaType: null, mediaData: '', ts: Date.now() - (i + 1) * 3600000, likes: new Set(), dislikes: new Set(), comments: [] });
-  });
-  console.log(`Seeded ${seedPosts.length} demo posts`);
-})();
+// (Demo accounts + demo posts seeding removed. No fake users are ever created.)
 
 // Self keep-alive: ping our own /health every 5 minutes so the free-tier
 // instance never idles to sleep (and data is never at risk of loss). The URL

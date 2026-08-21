@@ -6,8 +6,9 @@ const { v4: uuidv4 } = require('uuid');
 const { users, payments, kcbRefIndex } = require('../data/store');
 const { auth } = require('../middleware/auth');
 const {
-  PLANS, CREDIT_BUNDLES, HOOKUP_PRICE, billingSummary,
-  applySubscription, applyCredits, applyHookupUnlock, isSubscribed
+  PLANS, CREDIT_BUNDLES, HOOKUP_PRICE, HOOKUP_CHAT_PRICE, billingSummary,
+  applySubscription, applyCredits, applyHookupUnlock, isSubscribed,
+  applyHookupChatUnlock, hasHookupChatUnlock
 } = require('../utils/monetization');
 const kcb = require('../utils/kcb');
 
@@ -127,6 +128,28 @@ router.post('/hookup-unlock', auth, async (req, res) => {
   });
 });
 
+// POST /api/billing/hookup-chat-unlock  { phone, targetId }
+// One-time KES payment to unlock CHATTING with a specific Hookup member.
+// After paying once, that thread stays open forever. The payment record carries
+// targetId in `plan` so the callback knows which member thread to open.
+router.post('/hookup-chat-unlock', auth, async (req, res) => {
+  const targetId = (req.body && req.body.targetId) || '';
+  const target = users.get(targetId);
+  if (!targetId || !target) return res.status(400).json({ error: 'Unknown member' });
+  if (target.lookingFor !== 'hookup') return res.status(400).json({ error: 'Not a hookup member' });
+  if (targetId === req.userId) return res.status(400).json({ error: 'Cannot unlock yourself' });
+  if (hasHookupChatUnlock(req.userId, targetId)) {
+    return res.json({ ok: true, already: true, message: 'Chat already unlocked with this member.' });
+  }
+  return startPayment(req, res, {
+    kind: 'hookup_chat',
+    plan: targetId, // reuse the plan field to carry the target member id
+    amount: HOOKUP_CHAT_PRICE,
+    credits: 0,
+    description: `CampusConnect Hookup Chat — ${target.name || 'member'}`
+  });
+});
+
 // GET /api/billing/payment/:id  — the frontend polls this to know if the
 // user completed / cancelled the STK Push on their phone.
 router.get('/payment/:id', auth, (req, res) => {
@@ -228,6 +251,7 @@ async function kcbCallback(req, res) {
         if (p.kind === 'subscription') applySubscription(u, p.plan);
         if (p.kind === 'credits')      applyCredits(u, p.credits);
         if (p.kind === 'hookup')       applyHookupUnlock(u);
+        if (p.kind === 'hookup_chat')  applyHookupChatUnlock(p.userId, p.plan); // plan carries the target member id
         users.set(u.id, u);
       }
     }

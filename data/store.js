@@ -19,6 +19,7 @@ const stories = [];            // {id, userId, mediaType, mediaData, caption, ts
 const payments = new Map();    // paymentId -> {...}
 const kcbRefIndex = new Map(); // kcb checkoutRequestID/merchantRequestID -> paymentId
 const chatReplies = new Map(); // `${userId}:${otherId}` -> number of free replies used
+const hookupChatUnlocks = new Map(); // `${userId}:${targetHookupUserId}` -> { ts } — one-time per-member chat unlock
 
 // ---------------------------------------------------------------------------
 // PERSISTENCE (Render free tier has an ephemeral disk, but it survives sleep
@@ -44,7 +45,8 @@ function serialize() {
     stories: stories.map(s => ({ ...s, viewers: Array.from(s.viewers || []) })),
     payments: Array.from(payments.values()),
     kcbRefIndex: Array.from(kcbRefIndex.entries()),
-    chatReplies: Array.from(chatReplies.entries())
+    chatReplies: Array.from(chatReplies.entries()),
+    hookupChatUnlocks: Array.from(hookupChatUnlocks.entries())
   };
 }
 
@@ -81,6 +83,7 @@ function loadFromDisk() {
     if (Array.isArray(s.payments)) for (const p of s.payments) if (p && p.id) payments.set(p.id, p);
     if (Array.isArray(s.kcbRefIndex)) for (const [k, v] of s.kcbRefIndex) kcbRefIndex.set(k, v);
     if (Array.isArray(s.chatReplies)) for (const [k, v] of s.chatReplies) chatReplies.set(k, v);
+    if (Array.isArray(s.hookupChatUnlocks)) for (const [k, v] of s.hookupChatUnlocks) hookupChatUnlocks.set(k, v);
     console.log(`Store loaded from disk: ${users.size} users, ${payments.size} payments, ${messages.length} messages`);
     return true;
   } catch (e) {
@@ -95,6 +98,6 @@ process.on('SIGINT', saveNow);
 
 module.exports = {
   users, emails, messages, likes, matches, posts, notifications, profileViews, stories,
-  payments, kcbRefIndex, chatReplies,
+  payments, kcbRefIndex, chatReplies, hookupChatUnlocks,
   persist, saveNow, loadFromDisk
 };

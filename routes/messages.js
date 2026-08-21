@@ -3,7 +3,7 @@ const { v4: uuidv4 } = require('uuid');
 const { messages, users, chatReplies } = require('../data/store');
 const { auth } = require('../middleware/auth');
 const { notify } = require('../utils/notify');
-const { checkChatSend, isSubscribed, FREE_LIMITS } = require('../utils/monetization');
+const { checkChatSend, isSubscribed, hasHookupChatUnlock, FREE_LIMITS } = require('../utils/monetization');
 // (isSubscribed used to expose verified badge on conversation partners)
 
 const router = express.Router();
@@ -47,25 +47,44 @@ router.post('/send', auth, (req, res) => {
     return res.status(400).json({ error: 'Image is too large' });
   }
 
+  // ============= Hookup-member chat unlock gate =============
+  // Texting a HOOKUP member is unlocked with a one-time per-member payment.
+  // Once paid, the thread stays open forever and skips the normal
+  // subscription/credits gating below.
+  const recipient = users.get(to);
+  const hookupThread = !!(recipient && recipient.lookingFor === 'hookup');
+  if (hookupThread && !hasHookupChatUnlock(req.userId, to)) {
+    return res.status(402).json({
+      error: `Unlock chat with ${recipient.name || 'this member'} to start texting. One-time payment — then keep chatting.`,
+      code: 'need_hookup_chat',
+      targetId: to,
+      targetName: recipient.name || 'Member'
+    });
+  }
+
   // ============= Subscription / credits gating =============
   const threadKey = `${req.userId}:${to}`;
   const threadFreeUsed = chatReplies.get(threadKey) || 0;
-  const gate = checkChatSend(me, threadFreeUsed);
-  if (!gate.ok) {
-    return res.status(402).json({ error: gate.reason, code: gate.code });
+  let chargedCredit = false;
+  if (!hookupThread) {
+    const gate = checkChatSend(me, threadFreeUsed);
+    if (!gate.ok) {
+      return res.status(402).json({ error: gate.reason, code: gate.code });
+    }
+    // Deduct one credit if this message is past the free allowance
+    if (gate.chargeCredit) {
+      if ((me.credits || 0) <= 0) return res.status(402).json({ error: 'Not enough credits. Buy credits to continue.', code: 'need_credits' });
+      me.credits = (me.credits || 0) - 1;
+      chargedCredit = true;
+    }
+    // Consume one free message from the current subscription period and track
+    // the per-thread free counter (max FREE_LIMITS.freeRepliesPerChat per chat).
+    if (gate.consumeFree) {
+      me.freeMessagesUsed = (me.freeMessagesUsed || 0) + 1;
+      chatReplies.set(threadKey, threadFreeUsed + 1);
+    }
+    users.set(req.userId, me);
   }
-  // Deduct one credit if this message is past the free allowance
-  if (gate.chargeCredit) {
-    if ((me.credits || 0) <= 0) return res.status(402).json({ error: 'Not enough credits. Buy credits to continue.', code: 'need_credits' });
-    me.credits = (me.credits || 0) - 1;
-  }
-  // Consume one free message from the current subscription period and track
-  // the per-thread free counter (max FREE_LIMITS.freeRepliesPerChat per chat).
-  if (gate.consumeFree) {
-    me.freeMessagesUsed = (me.freeMessagesUsed || 0) + 1;
-    chatReplies.set(threadKey, threadFreeUsed + 1);
-  }
-  users.set(req.userId, me);
   // =========================================================
 
   const msg = {
@@ -81,7 +100,7 @@ router.post('/send', auth, (req, res) => {
   // Notify the recipient so they know someone texted them
   const preview = hasImage && !cleanText ? '📷 sent you a photo' : 'sent you a message';
   notify(to, 'message', `💬 ${me ? me.name : 'Someone'} ${preview}`, req.userId);
-  res.json({ ...msg, credits: me.credits, chargedCredit: !!gate.chargeCredit });
+  res.json({ ...msg, credits: me.credits, chargedCredit });
 });
 
 router.get('/with/:userId', auth, (req, res) => {
