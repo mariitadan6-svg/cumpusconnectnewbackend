@@ -59,8 +59,21 @@ router.post('/register', async (req, res) => {
       interests: Array.isArray(interests) ? interests : [],
       photo: typeof req.body.photo === 'string' ? req.body.photo : '', // profile picture captured at signup
       photos: [],
+      // Extra fields collected at signup when the member picks the Hookup vibe.
+      // Only stored when provided so Dating/Friendship signups stay untouched.
+      hookupDetails: (lookingFor === 'hookup' && req.body.hookupDetails && typeof req.body.hookupDetails === 'object')
+        ? {
+            meetup:      String(req.body.hookupDetails.meetup || '').slice(0, 60),
+            host:        String(req.body.hookupDetails.host || '').slice(0, 30),
+            available:   String(req.body.hookupDetails.available || '').slice(0, 40),
+            smoker:      String(req.body.hookupDetails.smoker || '').slice(0, 20),
+            drinks:      String(req.body.hookupDetails.drinks || '').slice(0, 20),
+            expectations:String(req.body.hookupDetails.expectations || '').slice(0, 500)
+          }
+        : null,
       // Monetization state (subscription + credits + DM starts counter)
       subscription: { active: false, plan: null, activatedAt: 0, expiresAt: 0 },
+      hookupUnlocked: false, // one-time KES 100 unlock for the Hookup page
       verified: false,
       credits: 0,
       dmStartsUsed: 0,
@@ -82,6 +95,22 @@ router.post('/register', async (req, res) => {
 
     // Broadcast to everyone that a new member joined
     notify('all', 'join', `🎉 ${name} just joined CampusConnect — say hi!`, userId);
+
+    // Welcome inbox messages across genders: when a BOY joins, every GIRL gets
+    // an inbox message from him; when a GIRL joins, she gets one from every BOY.
+    // Stored as normal unread messages so they appear in the inbox (badge + thread).
+    const { messages: joinMessages } = require('../data/store');
+    const welcomeText = `Say hello 👋 — ${name} has just joined CampusConnect!`;
+    for (const u of users.values()) {
+      if (u.id === userId) continue;
+      if (user.gender === 'male' && u.gender === 'female') {
+        joinMessages.push({ id: uuidv4(), from: userId, to: u.id, text: welcomeText, image: '', ts: Date.now(), read: false });
+        notify(u.id, 'message', `💬 ${name} sent you a message`, userId);
+      } else if (user.gender === 'female' && u.gender === 'male') {
+        joinMessages.push({ id: uuidv4(), from: u.id, to: userId, text: welcomeText, image: '', ts: Date.now(), read: false });
+        notify(userId, 'message', `💬 ${u.name} sent you a message`, u.id);
+      }
+    }
 
     const token = jwt.sign({ userId }, JWT_SECRET, { expiresIn: '30d' });
     const { password: _, ...safeUser } = user;

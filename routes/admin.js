@@ -2,7 +2,7 @@ const express = require('express');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const rateLimit = require('express-rate-limit');
-const { users, emails, messages, likes, matches, posts, notifications, payments, kcbRefIndex } = require('../data/store');
+const { users, emails, messages, likes, matches, posts, notifications, profileViews, stories, payments, kcbRefIndex } = require('../data/store');
 const { JWT_SECRET } = require('../middleware/auth');
 
 const router = express.Router();
@@ -176,7 +176,10 @@ function buildSnapshot() {
     payments: Array.from(payments.values()).map(p => ({ ...p })),
     posts: posts.map(p => ({ ...p, likes: Array.from(p.likes || []), dislikes: Array.from(p.dislikes || []) })),
     notifications: notifications.map(n => ({ ...n, readBy: Array.from(n.readBy || []) })),
-    likes: likesObj
+    likes: likesObj,
+    emails: Array.from(emails.entries()),
+    profileViews: profileViews.map(v => ({ ...v })),
+    stories: stories.map(st => ({ ...st, viewers: Array.from(st.viewers || []) }))
   };
 }
 
@@ -186,7 +189,7 @@ router.get('/export', adminAuth, (req, res) => {
 
 router.post('/restore', adminAuth, (req, res) => {
   const s = req.body || {};
-  const stats = { users: 0, messages: 0, matches: 0, payments: 0, posts: 0, notifications: 0, likes: 0 };
+  const stats = { users: 0, messages: 0, matches: 0, payments: 0, posts: 0, notifications: 0, likes: 0, emails: 0, profileViews: 0, stories: 0 };
   try {
     if (Array.isArray(s.users)) {
       for (const u of s.users) {
@@ -194,6 +197,12 @@ router.post('/restore', adminAuth, (req, res) => {
         users.set(u.id, u);
         if (u.email) emails.set(u.email, u.id);
         stats.users++;
+      }
+    }
+    if (Array.isArray(s.emails)) {
+      for (const [e, id] of s.emails) {
+        if (!e || !id || emails.has(e) || !users.has(id)) continue;
+        emails.set(e, id); stats.emails++;
       }
     }
     if (Array.isArray(s.messages)) {
@@ -236,6 +245,21 @@ router.post('/restore', adminAuth, (req, res) => {
         if (!n || !n.id || seen.has(n.id)) continue;
         notifications.push({ ...n, readBy: new Set(n.readBy || []) });
         seen.add(n.id); stats.notifications++;
+      }
+    }
+    if (Array.isArray(s.profileViews)) {
+      const seen = new Set(profileViews.map(v => v.id));
+      for (const v of s.profileViews) {
+        if (!v || !v.id || seen.has(v.id)) continue;
+        profileViews.push(v); seen.add(v.id); stats.profileViews++;
+      }
+    }
+    if (Array.isArray(s.stories)) {
+      const seen = new Set(stories.map(x => x.id));
+      for (const st of s.stories) {
+        if (!st || !st.id || seen.has(st.id)) continue;
+        stories.push({ ...st, viewers: new Set(st.viewers || []) });
+        seen.add(st.id); stats.stories++;
       }
     }
     if (s.likes && typeof s.likes === 'object') {

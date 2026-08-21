@@ -6,8 +6,8 @@ const { v4: uuidv4 } = require('uuid');
 const { users, payments, kcbRefIndex } = require('../data/store');
 const { auth } = require('../middleware/auth');
 const {
-  PLANS, CREDIT_BUNDLES, billingSummary,
-  applySubscription, applyCredits, isSubscribed
+  PLANS, CREDIT_BUNDLES, HOOKUP_PRICE, billingSummary,
+  applySubscription, applyCredits, applyHookupUnlock, isSubscribed
 } = require('../utils/monetization');
 const kcb = require('../utils/kcb');
 
@@ -26,7 +26,7 @@ router.get('/catalog', (req, res) => {
   res.json({
     plans:   Object.values(PLANS),
     bundles: CREDIT_BUNDLES,
-    creditRate: 15
+    hookupPrice: HOOKUP_PRICE
   });
 });
 
@@ -87,7 +87,7 @@ async function startPayment(req, res, { kind, plan, amount, credits, description
   }
 }
 
-// POST /api/billing/subscribe  { plan:'daily'|'weekly'|'monthly', phone }
+// POST /api/billing/subscribe  { plan:'weekly'|'monthly', phone }
 router.post('/subscribe', auth, async (req, res) => {
   const planId = req.body && req.body.plan;
   const plan = PLANS[planId];
@@ -112,6 +112,18 @@ router.post('/credits', auth, async (req, res) => {
     amount: bundle.amount,
     credits: bundle.credits,
     description: `CampusConnect ${bundle.credits} credits`
+  });
+});
+
+// POST /api/billing/hookup-unlock  { phone }
+// One-time KES 100 payment that permanently unlocks the dedicated Hookup page.
+router.post('/hookup-unlock', auth, async (req, res) => {
+  return startPayment(req, res, {
+    kind: 'hookup',
+    plan: null,
+    amount: HOOKUP_PRICE,
+    credits: 0,
+    description: 'CampusConnect Hookup Access'
   });
 });
 
@@ -215,6 +227,7 @@ async function kcbCallback(req, res) {
       if (u) {
         if (p.kind === 'subscription') applySubscription(u, p.plan);
         if (p.kind === 'credits')      applyCredits(u, p.credits);
+        if (p.kind === 'hookup')       applyHookupUnlock(u);
         users.set(u.id, u);
       }
     }

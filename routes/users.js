@@ -35,6 +35,34 @@ function serializePost(p, meId) {
   };
 }
 
+// Hookup members discover — same filters as /discover but locked behind the
+// one-time Hookup access payment (hookupUnlocked) and only ever returns
+// members who picked the Hookup vibe.
+router.get('/hookup/discover', auth, (req, res) => {
+  const me = users.get(req.userId);
+  if (!me) return res.status(404).json({ error: 'Not found' });
+  if (!me.hookupUnlocked) {
+    return res.status(402).json({
+      error: 'Hookup is a premium page. Unlock it once to browse members here.',
+      code: 'need_hookup'
+    });
+  }
+
+  const { county, minAge, maxAge } = req.query;
+  let list = Array.from(users.values()).filter(u => u.id !== me.id && u.lookingFor === 'hookup');
+  if (county) list = list.filter(u => u.county === county);
+  if (minAge) list = list.filter(u => u.age >= Number(minAge));
+  if (maxAge) list = list.filter(u => u.age <= Number(maxAge));
+
+  const myInterests = new Set(me.interests || []);
+  list = list.map(u => {
+    const shared = (u.interests || []).filter(i => myInterests.has(i)).length;
+    return { ...stripUser(u), sharedInterests: shared, online: (Date.now() - (u.lastSeen || 0)) < ONLINE_MS };
+  });
+  list.sort((a, b) => b.sharedInterests - a.sharedInterests);
+  res.json(list);
+});
+
 // Get my profile
 router.get('/me', auth, (req, res) => {
   const u = users.get(req.userId);
@@ -54,7 +82,7 @@ router.put('/me', auth, (req, res) => {
   }
 
   const editable = ['name', 'age', 'gender', 'interestedIn', 'lookingFor',
-    'county', 'subcounty', 'bio', 'interests', 'photo', 'photos', 'settings'];
+    'county', 'subcounty', 'bio', 'interests', 'photo', 'photos', 'settings', 'hookupDetails'];
   editable.forEach(f => {
     if (req.body[f] !== undefined) u[f] = req.body[f];
   });

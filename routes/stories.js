@@ -1,19 +1,20 @@
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
-const { users } = require('../data/store');
+const { users, stories, persist } = require('../data/store');
 const { auth } = require('../middleware/auth');
 
 const router = express.Router();
 
-// In-memory stories (Instagram-style, auto-expire after 24 hours).
-// Kept intentionally simple and isolated so it doesn't touch the persisted store.
-const stories = []; // { id, userId, mediaType:'image'|'video', mediaData, caption, ts, viewers:Set }
+// Stories (Instagram-style, auto-expire after 24 hours) — backed by the shared
+// persisted store, so they survive backend sleep/restart for their 24h life.
 
 function prune() {
   const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+  let removed = false;
   for (let i = stories.length - 1; i >= 0; i--) {
-    if (stories[i].ts < cutoff) stories.splice(i, 1);
+    if (stories[i].ts < cutoff) { stories.splice(i, 1); removed = true; }
   }
+  if (removed) persist(); // expired stories stay gone after a restart too
 }
 
 function serialize(s, meId) {
@@ -112,3 +113,5 @@ router.delete('/:id', auth, (req, res) => {
 });
 
 module.exports = router;
+// Exported so the boot restore + admin snapshot can reach the stories store.
+module.exports.stories = stories;

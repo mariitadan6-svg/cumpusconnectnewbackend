@@ -13,6 +13,7 @@ const matches = [];            // {id, userA, userB, ts}
 const posts = [];              // {id, userId, text, mediaType, mediaData, ts, likes:Set, dislikes:Set, comments:[]}
 const notifications = [];      // {id, to, type, text, fromId, fromName, ts, readBy:Set}
 const profileViews = [];       // {id, viewerId, viewedId, ts}
+const stories = [];            // {id, userId, mediaType, mediaData, caption, ts, viewers:Set}
 
 // ===== Monetization stores (subscription/credits/KCB payments) =====
 const payments = new Map();    // paymentId -> {...}
@@ -40,6 +41,7 @@ function serialize() {
     posts: posts.map(p => ({ ...p, likes: Array.from(p.likes || []), dislikes: Array.from(p.dislikes || []) })),
     notifications: notifications.map(n => ({ ...n, readBy: Array.from(n.readBy || []) })),
     profileViews,
+    stories: stories.map(s => ({ ...s, viewers: Array.from(s.viewers || []) })),
     payments: Array.from(payments.values()),
     kcbRefIndex: Array.from(kcbRefIndex.entries()),
     chatReplies: Array.from(chatReplies.entries())
@@ -75,6 +77,7 @@ function loadFromDisk() {
     if (Array.isArray(s.posts)) for (const p of s.posts) posts.push({ ...p, likes: new Set(p.likes || []), dislikes: new Set(p.dislikes || []), comments: p.comments || [] });
     if (Array.isArray(s.notifications)) for (const n of s.notifications) notifications.push({ ...n, readBy: new Set(n.readBy || []) });
     if (Array.isArray(s.profileViews)) profileViews.push(...s.profileViews);
+    if (Array.isArray(s.stories)) for (const st of s.stories) stories.push({ ...st, viewers: new Set(st.viewers || []) });
     if (Array.isArray(s.payments)) for (const p of s.payments) if (p && p.id) payments.set(p.id, p);
     if (Array.isArray(s.kcbRefIndex)) for (const [k, v] of s.kcbRefIndex) kcbRefIndex.set(k, v);
     if (Array.isArray(s.chatReplies)) for (const [k, v] of s.chatReplies) chatReplies.set(k, v);
@@ -91,7 +94,7 @@ process.on('SIGTERM', saveNow);
 process.on('SIGINT', saveNow);
 
 module.exports = {
-  users, emails, messages, likes, matches, posts, notifications, profileViews,
+  users, emails, messages, likes, matches, posts, notifications, profileViews, stories,
   payments, kcbRefIndex, chatReplies,
   persist, saveNow, loadFromDisk
 };

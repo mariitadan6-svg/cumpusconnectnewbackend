@@ -121,8 +121,47 @@ app.get('/', (req, res) => {
 // Restore the persisted store FIRST (survives free-tier sleep/restart so users
 // are never "logged out" by data loss), then seed demo users ONLY when there is
 // genuinely no saved data (true first deploy).
-const { loadFromDisk, users: _seedCheck } = require('./data/store');
+const { loadFromDisk, users: _seedCheck, saveNow } = require('./data/store');
 loadFromDisk();
+
+// Boot self-restore: if this instance boots with an incomplete store (fresh
+// ephemeral disk after a redeploy) but the Netlify Vault admin left its latest
+// snapshot at .data/vault-export.json (download it from the panel and add it to
+// the repo / persistent disk), hydrate EVERYTHING from it — users, emails,
+// messages, matches, posts, notifications, profile views, payments, stories —
+// so no data ever received is lost. Runs synchronously BEFORE demo seeding so
+// real data is never polluted by demo users.
+(() => {
+  try {
+    const fs = require('fs');
+    const vaultFile = path.join(process.env.DATA_DIR || path.join(__dirname, '.data'), 'vault-export.json');
+    if (!fs.existsSync(vaultFile)) return;
+    const s = JSON.parse(fs.readFileSync(vaultFile, 'utf8'));
+    if (!s || !Array.isArray(s.users)) return;
+    const st = require('./data/store');
+    const storiesStore = require('./routes/stories').stories || [];
+    if (st.users.size >= s.users.length) return; // local store is already complete
+    let restored = 0;
+    for (const u of s.users) { if (u && u.id && !st.users.has(u.id)) { st.users.set(u.id, u); if (u.email) st.emails.set(u.email, u.id); restored++; } }
+    if (Array.isArray(s.emails)) for (const [e, id] of s.emails) { if (e && id && st.users.has(id) && !st.emails.has(e)) st.emails.set(e, id); }
+    const seenM = new Set(st.messages.map(m => m.id));
+    if (Array.isArray(s.messages)) for (const m of s.messages) { if (m && m.id && !seenM.has(m.id)) { st.messages.push(m); restored++; } }
+    st.messages.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+    const seenMa = new Set(st.matches.map(m => m.id));
+    if (Array.isArray(s.matches)) for (const m of s.matches) { if (m && m.id && !seenMa.has(m.id)) { st.matches.push(m); restored++; } }
+    const seenP = new Set(st.posts.map(p => p.id));
+    if (Array.isArray(s.posts)) for (const p of s.posts) { if (p && p.id && !seenP.has(p.id)) { st.posts.push({ ...p, likes: new Set(p.likes || []), dislikes: new Set(p.dislikes || []), comments: p.comments || [] }); restored++; } }
+    const seenN = new Set(st.notifications.map(n => n.id));
+    if (Array.isArray(s.notifications)) for (const n of s.notifications) { if (n && n.id && !seenN.has(n.id)) { st.notifications.push({ ...n, readBy: new Set(n.readBy || []) }); restored++; } }
+    const seenV = new Set(st.profileViews.map(v => v.id));
+    if (Array.isArray(s.profileViews)) for (const v of s.profileViews) { if (v && v.id && !seenV.has(v.id)) { st.profileViews.push(v); restored++; } }
+    for (const p of (s.payments || [])) { if (!p || !p.id) continue; const ex = st.payments.get(p.id); if (!ex || (p.updatedAt || 0) > (ex.updatedAt || 0)) { st.payments.set(p.id, p); restored++; } if (p.checkoutId) st.kcbRefIndex.set(p.checkoutId, p.id); if (p.merchantId) st.kcbRefIndex.set(p.merchantId, p.id); }
+    if (Array.isArray(s.chatReplies)) for (const [k, v] of s.chatReplies) { if (!st.chatReplies.has(k)) st.chatReplies.set(k, v); }
+    if (Array.isArray(s.stories)) { const seenS = new Set(storiesStore.map(x => x.id)); for (const x of s.stories) { if (x && x.id && !seenS.has(x.id)) storiesStore.push({ ...x, viewers: new Set(x.viewers || []) }); } }
+    if (restored > 0) { console.log(`Vault boot-restore: hydrated ${restored} records from vault-export.json`); saveNow(); }
+  } catch (e) { console.error('Vault boot-restore skipped:', e.message); }
+})();
+
 if (_seedCheck.size === 0) (async () => {
   const bcrypt = require('bcryptjs');
   const { v4: uuidv4 } = require('uuid');
@@ -166,6 +205,17 @@ if (_seedCheck.size === 0) (async () => {
   });
   console.log(`Seeded ${seedPosts.length} demo posts`);
 })();
+
+// Self keep-alive: ping our own /health every 5 minutes so the free-tier
+// instance never idles to sleep (and data is never at risk of loss). The URL
+// is the public backend address — set SELF_URL on Render (e.g.
+// https://your-backend.onrender.com); without it this stays disabled.
+const SELF_URL = (process.env.SELF_URL || '').replace(/\/+$/, '');
+if (SELF_URL) {
+  const ping = () => fetch(`${SELF_URL}/health`).catch(() => {});
+  setInterval(ping, 5 * 60 * 1000);
+  setTimeout(ping, 30000);
+}
 
 app.use((err, req, res, next) => {
   console.error(err);
