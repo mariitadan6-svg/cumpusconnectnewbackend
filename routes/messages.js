@@ -1,6 +1,6 @@
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
-const { messages, users, chatReplies } = require('../data/store');
+const { messages, users, chatReplies, pinnedChats } = require('../data/store');
 const { auth } = require('../middleware/auth');
 const { notify } = require('../utils/notify');
 const { checkChatSend, isSubscribed, hasHookupChatUnlock, FREE_LIMITS } = require('../utils/monetization');
@@ -135,10 +135,29 @@ router.get('/conversations', auth, (req, res) => {
       user: safe,
       lastMessage: info.lastMessage,
       unread: info.unread,
-      online: (Date.now() - (u.lastSeen || 0)) < 120000
+      online: (Date.now() - (u.lastSeen || 0)) < 120000,
+      pinned: pinnedChats.has(`${me}:${pid}`)
     };
-  }).filter(Boolean).sort((a, b) => ((b.lastMessage && b.lastMessage.ts) || 0) - ((a.lastMessage && a.lastMessage.ts) || 0));
+  }).filter(Boolean).sort((a, b) => {
+    // Pinned conversations always float to the top; inside each group the
+    // most recent message wins (previous ordering behaviour kept as-is).
+    if (!!b.pinned !== !!a.pinned) return (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0);
+    return ((b.lastMessage && b.lastMessage.ts) || 0) - ((a.lastMessage && a.lastMessage.ts) || 0);
+  });
   res.json(list);
+});
+
+// Pin / unpin a conversation partner (per-user, persisted with the store)
+router.post('/pin/:userId', auth, (req, res) => {
+  const other = req.params.userId;
+  if (!users.has(other)) return res.status(404).json({ error: 'User not found' });
+  const key = `${req.userId}:${other}`;
+  if (pinnedChats.has(key)) {
+    pinnedChats.delete(key);
+    return res.json({ pinned: false });
+  }
+  pinnedChats.set(key, Date.now());
+  res.json({ pinned: true });
 });
 
 // Mark a whole thread as read

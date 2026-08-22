@@ -20,6 +20,7 @@ const payments = new Map();    // paymentId -> {...}
 const kcbRefIndex = new Map(); // kcb checkoutRequestID/merchantRequestID -> paymentId
 const chatReplies = new Map(); // `${userId}:${otherId}` -> number of free replies used
 const hookupChatUnlocks = new Map(); // `${userId}:${targetHookupUserId}` -> { ts } — one-time per-member chat unlock
+const pinnedChats = new Map();     // `${userId}:${partnerId}` -> ts pinned at — lets a member pin someone to the top of their conversation list
 
 // ---------------------------------------------------------------------------
 // PERSISTENCE (Render free tier has an ephemeral disk, but it survives sleep
@@ -46,7 +47,8 @@ function serialize() {
     payments: Array.from(payments.values()),
     kcbRefIndex: Array.from(kcbRefIndex.entries()),
     chatReplies: Array.from(chatReplies.entries()),
-    hookupChatUnlocks: Array.from(hookupChatUnlocks.entries())
+    hookupChatUnlocks: Array.from(hookupChatUnlocks.entries()),
+    pinnedChats: Array.from(pinnedChats.entries())
   };
 }
 
@@ -105,6 +107,7 @@ function loadFromDisk() {
     if (Array.isArray(s.kcbRefIndex)) for (const [k, v] of s.kcbRefIndex) kcbRefIndex.set(k, v);
     if (Array.isArray(s.chatReplies)) for (const [k, v] of s.chatReplies) chatReplies.set(k, v);
     if (Array.isArray(s.hookupChatUnlocks)) for (const [k, v] of s.hookupChatUnlocks) hookupChatUnlocks.set(k, v);
+    if (Array.isArray(s.pinnedChats)) for (const [k, v] of s.pinnedChats) pinnedChats.set(k, v);
     console.log(`Store loaded from disk: ${users.size} users, ${payments.size} payments, ${messages.length} messages`);
     return true;
   } catch (e) {
@@ -119,6 +122,6 @@ process.on('SIGINT', flushSync);
 
 module.exports = {
   users, emails, messages, likes, matches, posts, notifications, profileViews, stories,
-  payments, kcbRefIndex, chatReplies, hookupChatUnlocks,
+  payments, kcbRefIndex, chatReplies, hookupChatUnlocks, pinnedChats,
   persist, saveNow, loadFromDisk
 };
