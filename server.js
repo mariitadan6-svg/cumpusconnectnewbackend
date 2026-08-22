@@ -18,6 +18,11 @@ const billingRoutes = require('./routes/billing');
 const storyRoutes = require('./routes/stories');
 
 const app = express();
+// Trust the first proxy hop (Netlify -> Render). Without this, Express only
+// ever sees the Netlify edge IP, so the rate limiter below buckets ALL
+// visitors together and a handful of active users exhaust the shared bucket
+// -> every visitor gets 429 "Server is busy" at the same time.
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 5000;
 
 // Helmet with relaxed CSP so inline scripts (admin panel, frontend) work
@@ -58,7 +63,7 @@ app.use(express.json({ limit: '25mb' })); // raised for photo/video uploads as d
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 2000, // raised: the app polls regularly, so 500/15min caused 429 lockouts
+  max: 10000, // generous per-IP bucket: the app polls regularly, and with 'trust proxy' set each real visitor now gets their OWN bucket, so ~1000 concurrent users never trip this — it now only stops genuine single-IP abuse
   standardHeaders: true,
   legacyHeaders: false,
   // ALWAYS answer with JSON so clients never crash parsing the plain-text

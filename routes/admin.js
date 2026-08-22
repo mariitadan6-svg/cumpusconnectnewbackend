@@ -52,7 +52,10 @@ router.post('/login', adminLoginLimiter, (req, res) => {
   const { password } = req.body;
   if (!password) return res.status(400).json({ error: 'Password required' });
   if (!ADMIN_PASSWORD || !safeEqual(password, ADMIN_PASSWORD)) return res.status(401).json({ error: 'Invalid admin password' });
-  const token = jwt.sign({ admin: true }, JWT_SECRET, { expiresIn: '12h' });
+  // 30-day admin session (was 12h — the cause of the admin panel logging
+  // itself out). Paired with the stable JWT_SECRET in middleware/auth.js,
+  // the admin now stays signed in through restarts, refreshes and idle time.
+  const token = jwt.sign({ admin: true }, JWT_SECRET, { expiresIn: '30d' });
   res.json({ token });
 });
 

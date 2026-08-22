@@ -10,8 +10,14 @@ const jwt = require('jsonwebtoken');
 // ---------------------------------------------------------------------------
 let JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET || JWT_SECRET.length < 16) {
-  JWT_SECRET = crypto.randomBytes(48).toString('hex');
-  console.warn('[security] JWT_SECRET not set or too short — using a random ephemeral secret. Set JWT_SECRET in your environment for persistent sessions.');
+  // STABLE development-only fallback: it is the SAME on every boot, so a
+  // server restart / redeploy / wake-from-sleep NEVER invalidates sessions
+  // again (the old random-per-boot secret logged out EVERY user + the admin
+  // on every restart). For production ALWAYS set JWT_SECRET as an
+  // environment variable (Render -> Environment Variables) — this fallback
+  // is public and only meant for local development.
+  JWT_SECRET = 'campusconnect-dev-only-fallback-secret-set-JWT_SECRET-in-env';
+  console.warn('[security] JWT_SECRET not set or too short — using the stable built-in development secret so sessions survive restarts. For production, set JWT_SECRET in your environment.');
 }
 
 function auth(req, res, next) {

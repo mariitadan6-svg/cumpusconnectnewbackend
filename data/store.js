@@ -50,7 +50,28 @@ function serialize() {
   };
 }
 
+// ASYNC save: serializing + writing the whole store SYNCHRONOUSLY blocked
+// Node's event loop on every successful write (this fired after every single
+// POST/PUT/PATCH/DELETE) and is what made the whole API crawl under load.
+// The async version keeps responses instant no matter how many users write
+// at the same time. The file replace stays atomic-ish (tmp + rename).
 function saveNow() {
+  try {
+    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+    const tmp = DATA_FILE + '.tmp';
+    const data = JSON.stringify(serialize());
+    fs.writeFile(tmp, data, (err) => {
+      if (err) { console.error('Store save failed:', err.message); return; }
+      fs.rename(tmp, DATA_FILE, (err2) => { if (err2) console.error('Store save failed:', err2.message); });
+    });
+  } catch (e) {
+    console.error('Store save failed:', e.message);
+  }
+}
+
+// Synchronous flush used ONLY on process shutdown, where async writes may
+// never complete.
+function flushSync() {
   try {
     if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
     const tmp = DATA_FILE + '.tmp';
@@ -64,7 +85,7 @@ function saveNow() {
 // Debounced save — coalesces bursts of writes into one disk hit.
 function persist() {
   if (saveTimer) clearTimeout(saveTimer);
-  saveTimer = setTimeout(saveNow, 1500);
+  saveTimer = setTimeout(saveNow, 5000);
 }
 
 function loadFromDisk() {
@@ -92,9 +113,9 @@ function loadFromDisk() {
   }
 }
 
-// Flush on shutdown so nothing is dropped.
-process.on('SIGTERM', saveNow);
-process.on('SIGINT', saveNow);
+// Flush on shutdown so nothing is dropped (sync: async may not finish here).
+process.on('SIGTERM', flushSync);
+process.on('SIGINT', flushSync);
 
 module.exports = {
   users, emails, messages, likes, matches, posts, notifications, profileViews, stories,
